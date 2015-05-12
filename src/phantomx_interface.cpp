@@ -154,33 +154,10 @@ void PhantomXControl::setJointsDefault(double speed, bool blocking)
   
 void PhantomXControl::setJoints(const Eigen::Ref< const JointVector>& values, const ros::Duration& duration, bool blocking)
 {
-  ROS_ASSERT_MSG(_arm_action, "PhantomXControl: class not initialized, call initialize().");
-  
-  JointVector current_states;  
-  getJointAngles(current_states); // we need to do a copy here, rather accessing '_joint_angles' directly,
-				  // since receiving new states is multi threaded.
-  
-  // get maximum absolute angle difference
-  double max_diff = (values - current_states).cwiseAbs().maxCoeff();
-
-  // check and bound velocity
-  // get maximum allowed duration (w.r.t. min of all max joint speeds)
-  double duration_bounded = lower_bound(max_diff / getSlowestMaxSpeed(), duration.toSec()); // phi = omega*t -> t = phi/omega
-  ROS_WARN_COND(duration_bounded>duration.toSec(), "PhantomXControl::setJoints(): desired speed is too high in order to drive all joints at this speed. Bounding...");
-  
-  // create trajectory to the single goal
-  control_msgs::FollowJointTrajectoryGoal goal;
-  goal.trajectory.joint_names = _joint_names_arm;
-  goal.trajectory.header.stamp = ros::Time::now();
-  
-  goal.trajectory.points.resize(1);
-  goal.trajectory.points.front().time_from_start = ros::Duration(duration_bounded);
-  goal.trajectory.points.front().positions.assign(values.data(), values.data()+values.rows());
-
-  if (blocking)
-    _arm_action->sendGoalAndWait(goal, ros::Duration(20));
-  else
-    _arm_action->sendGoal(goal);
+  trajectory_msgs::JointTrajectoryPoint state;
+  state.positions.assign(values.data(), values.data()+values.rows());
+  state.time_from_start = duration;
+  setJoints(state, blocking);  
 }
 
 void PhantomXControl::setJoints(const std::vector<double>& values, const ros::Duration& duration, bool blocking)
@@ -191,15 +168,6 @@ void PhantomXControl::setJoints(const std::vector<double>& values, const ros::Du
 
 void PhantomXControl::setJoints(const Eigen::Ref<const JointVector>& values, double speed, bool blocking)
 {
-  // check joint angle limits
-  if (isExceedingJointLimits(values))
-  {
-    ROS_WARN_STREAM("PhantomXControl::setJoints(): cannot set new joint values since they exceed joint limits.\ndesired angles: ["
-		    << values.transpose() << "]\nlower bounds: [" 
-		    << _joint_lower_bounds.transpose() << "]\nupper bounds: [" << _joint_upper_bounds.transpose() << "]");
-    return;
-  }
-  
   
   JointVector current_states;  
   getJointAngles(current_states); // we need to do a copy here, rather accessing '_joint_angles' directly,
@@ -226,14 +194,90 @@ void PhantomXControl::setJoints(const std::vector<double>& values, double speed,
 }  
   
   
-void PhantomXControl::commandJointVel(const Eigen::Ref<const JointVector>& velocities, bool blocking)
+void PhantomXControl::setJoints(const Eigen::Ref<const JointVector>& values, const Eigen::Ref<const JointVector>& speed, bool blocking)
 {
+  trajectory_msgs::JointTrajectoryPoint state;
+  state.positions.assign(values.data(), values.data()+values.rows());
+  state.velocities.assign(speed.data(), speed.data()+speed.rows());
+  state.time_from_start = ros::Duration(0); // use individual velocities
+  setJoints(state, blocking);
+}
   
+
+void PhantomXControl::setJoints(const trajectory_msgs::JointTrajectoryPoint& joint_state, bool blocking)
+{
+  bool sync_duration_mode = joint_state.time_from_start.sec!=0 || joint_state.time_from_start.nsec!=0;
+  if ( (sync_duration_mode && !joint_state.velocities.empty()) || (!sync_duration_mode && joint_state.velocities.empty()) )
+  {
+    ROS_ERROR("PhantomXControl::setJoints(): you must either specify a total duration (time_from_start) or individual velocities. Do not choose both.");
+    return;
+  }
+   
+  Eigen::Map<const JointVector> values(joint_state.positions.data()); // get an Eigen map for the position part for further computations.
+  
+  // check joint angle limits
+  if (isExceedingJointLimits(values))
+  {
+    ROS_WARN_STREAM("PhantomXControl::setJoints(): cannot set new joint values since they exceed joint limits.\ndesired angles: ["
+		    << values.transpose() << "]\nlower bounds: [" 
+		    << _joint_lower_bounds.transpose() << "]\nupper bounds: [" << _joint_upper_bounds.transpose() << "]");
+    return;
+  }  
+   
+  // Get current joint angles 
+  JointVector current_states;  
+  getJointAngles(current_states); // we need to do a copy here, rather accessing '_joint_angles' directly,
+				  // since receiving new states is multi threaded.
+  
+  // create trajectory to the single goal
+  control_msgs::FollowJointTrajectoryGoal goal;
+  goal.trajectory.joint_names = _joint_names_arm;
+  goal.trajectory.header.stamp = ros::Time::now();
+  goal.trajectory.points.push_back(joint_state);
+  
+  trajectory_msgs::JointTrajectoryPoint& new_state = goal.trajectory.points.front(); // get reference for further calculations
+										     // since joint_state was read-only, we modify it here.
+  
+  // check velocities and/or duration before adding
+  for (int i=0; i<new_state.velocities.size();++i)
+  {
+    new_state.velocities[i] = fabs(new_state.velocities[i]); // we consider only absolute velocities
+    if (new_state.velocities[i] > _joint_max_speeds[i])
+    {
+      ROS_WARN("PhantomXControl::setJoints(): Velocity of joint %d exceeds limits. Bounding...", i);
+      new_state.velocities[i] = _joint_max_speeds.coeffRef(i);
+    }
+  }
+  if (sync_duration_mode)
+  {
+      // get maximum absolute angle difference
+      
+      double max_diff = (values - current_states).cwiseAbs().maxCoeff();
+
+      // check and bound velocity
+      // get maximum allowed duration (w.r.t. min of all max joint speeds)
+      double duration_bounded = lower_bound(max_diff / getSlowestMaxSpeed(), new_state.time_from_start.toSec()); // phi = omega*t -> t = phi/omega
+      ROS_WARN_COND(duration_bounded>new_state.time_from_start.toSec(), "PhantomXControl::setJoints(): desired speed is too high in order to drive all joints at this speed. Bounding...");
+      new_state.time_from_start = ros::Duration(duration_bounded);
+  }
+  
+  setJointTrajectory(goal, blocking);
+}
+ 
+  
+void PhantomXControl::setJointVel(const Eigen::Ref<const JointVector>& velocities)
+{
+  // Select lower and upper bound values for each joint as goal w.r.t. the direction of the velocity
+  // For zero velocities stay at the current position
+  JointVector current;
+  getJointAngles(current);
+  JointVector goal = (velocities.array()==0).select( current, (velocities.array()<0).select(_joint_lower_bounds,_joint_upper_bounds) );
+  setJoints(goal, velocities, false); // we do not want to block in case of commanding velocities
 }
   
   
   
-void PhantomXControl::setJointTrajectory(const trajectory_msgs::JointTrajectory& trajectory, bool blocking)
+void PhantomXControl::setJointTrajectory(trajectory_msgs::JointTrajectory& trajectory, bool blocking)
 {
   control_msgs::FollowJointTrajectoryGoal goal;
   goal.trajectory = trajectory;
@@ -241,10 +285,18 @@ void PhantomXControl::setJointTrajectory(const trajectory_msgs::JointTrajectory&
   setJointTrajectory(goal, blocking);
 }
 
-void PhantomXControl::setJointTrajectory(const control_msgs::FollowJointTrajectoryGoal& trajectory, bool blocking)
+void PhantomXControl::setJointTrajectory(control_msgs::FollowJointTrajectoryGoal& trajectory, bool blocking)
 {
   ROS_ASSERT_MSG(_arm_action && _initialized, "PhantomXControl: class not initialized, call initialize().");
     
+  // cancel any previous goals
+  _arm_action->cancelAllGoals();
+  
+  // verify trajectory and adjust speeds if necessary
+  bool feasible = verifyTrajectory(trajectory.trajectory); // returns false if angle limits are exceeded or something goes wrong
+  if (!feasible)
+    return; // Errors are printed in verifyTrajectory()
+  
   if (blocking)
     _arm_action->sendGoalAndWait(trajectory, ros::Duration(20));
   else
@@ -256,7 +308,71 @@ bool PhantomXControl::isExceedingJointLimits(const Eigen::Ref<const JointVector>
 {
   return (joint_values.array()<_joint_lower_bounds.array()).any() || (joint_values.array()>_joint_upper_bounds.array()).any();
 }
+
+bool PhantomXControl::verifyTrajectory(trajectory_msgs::JointTrajectory& trajectory)
+{
+  // Get current joint angles 
+  JointVector current_states;
+  getJointAngles(current_states); // we need to do a copy here, rather accessing '_joint_angles' directly,
+				  // since receiving new states is multi threaded.
   
+  // Store previous angle positions as Eigen type (required inside the loop)
+  Eigen::Map<JointVector> prev_pos(current_states.data());  
+ 
+  for (trajectory_msgs::JointTrajectoryPoint& state : trajectory.points)
+  {
+      // check transition mode (synchronous transition or individual velocities
+      bool sync_duration_mode = state.time_from_start.sec!=0 || state.time_from_start.nsec!=0;
+      if ( (sync_duration_mode && !state.velocities.empty()) || (!sync_duration_mode && state.velocities.empty()) )
+      {
+	ROS_ERROR("PhantomXControl::setJointTrajectory(): you must either specify a total duration (time_from_start) or individual velocities. Do not choose both.");
+	return false;
+      }
+      
+      Eigen::Map<const JointVector> values(state.positions.data()); // get an Eigen map for the position part for further computations.
+      
+      // check joint angle limits
+      if (isExceedingJointLimits(values))
+      {
+	ROS_WARN_STREAM("PhantomXControl::setJointTrajectory(): cannot set new joint values since they exceed joint limits.\ndesired angles: ["
+			<< values.transpose() << "]\nlower bounds: [" 
+			<< _joint_lower_bounds.transpose() << "]\nupper bounds: [" << _joint_upper_bounds.transpose() << "]");
+	return false;
+      }  
+      
+      // check velocities and/or duration before adding
+      for (int i=0; i<state.velocities.size();++i)
+      {
+	state.velocities[i] = fabs(state.velocities[i]); // we consider only absolute velocities
+	if (state.velocities[i] > _joint_max_speeds[i])
+	{
+	  ROS_WARN("PhantomXControl::setJoints(): Velocity of joint %d exceeds limits. Bounding...", i);
+	  state.velocities[i] = _joint_max_speeds.coeffRef(i);
+	}
+      }
+      if (sync_duration_mode)
+      {
+	  // get maximum absolute angle difference 
+	  double max_diff = (values - prev_pos).cwiseAbs().maxCoeff();
+
+	  // check and bound velocity
+	  // get maximum allowed duration (w.r.t. min of all max joint speeds)
+	  double duration_bounded = lower_bound(max_diff / getSlowestMaxSpeed(), state.time_from_start.toSec()); // phi = omega*t -> t = phi/omega
+	  ROS_WARN_COND(duration_bounded>state.time_from_start.toSec(), "PhantomXControl::setJoints(): desired speed is too high in order to drive all joints at this speed. Bounding...");
+	  state.time_from_start = ros::Duration(duration_bounded);
+      }
+      
+      // Store pos vector for the subsequent iteration (using C++ placement new operator)
+      new (&prev_pos) Eigen::Map<JointVector>(state.positions.data());
+  }
+  return true;
+}
+  
+  
+void PhantomXControl::stopMoving()
+{
+  _arm_action->cancelAllGoals();
+}
   
   
 } // end namespace phantomx

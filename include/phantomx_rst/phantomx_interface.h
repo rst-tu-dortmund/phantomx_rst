@@ -193,12 +193,38 @@ public:
    */
   void setJoints(const std::vector<double>& values, double speed, bool blocking=true);
   
+  /**
+   * @brief Command new joint angles by commanding individual joint velocities
+   * @param values vector of new joint angles q=[q1,q2,q3,q4]^T
+   * @param speed vector containing joint velocities qdot = [omega1, omega2, omega3, omega4]^T
+   * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
+   */
+  void setJoints(const Eigen::Ref<const JointVector>& values, const Eigen::Ref<const JointVector>& speed, bool blocking=true);
+  
+  /**
+   * @brief Command new joint angles
+   * 
+   * You can either specify a synchronous transition by setting \c joint_state.time_from_start to a given duration,
+   * or you can set each joint velocity individual by providing \c joint_state.velocities.
+   * @param joint_state trajectory_msgs::JointTrajectoryPoint type
+   * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
+   */
+  void setJoints(const trajectory_msgs::JointTrajectoryPoint& joint_state, bool blocking=true);
+  
   //@}
   
   /** @name Command joint velocities */
   //@{
   
-  void commandJointVel(const Eigen::Ref<const JointVector>& velocities, bool blocking=true);
+  /**
+   * @brief Command robot by specifying joint velocities.
+   * 
+   * Be careful, this call is a non-blocking call and the robot will
+   * hold the specified velocities until joint limits are exceeded or
+   * a new command is sent.
+   * @param velocities vector of desired joint velocities
+   */
+  void setJointVel(const Eigen::Ref<const JointVector>& velocities);
   
   //@}
   
@@ -227,21 +253,20 @@ public:
    *	trajectory.points[1].time_from_start = ros::Duration(5); // 3 seconds for the transition
    * @endcode
    * 
-   * @param trajectory JointTrajectory message containing the new positions
-   * @param speed speed for the transition w.r.t. the joint with the highest deviation from the final state.
+   * @param trajectory JointTrajectory message containing the new positions (non-const, since velocity could be limited: warnings appear)
    * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
    */
-  void setJointTrajectory(const trajectory_msgs::JointTrajectory& trajectory, bool blocking=true);
+  void setJointTrajectory(trajectory_msgs::JointTrajectory& trajectory, bool blocking=true);
   
   /**
    * @brief Follow a given joint trajectory
    * 
    * See setJointTrajectory(const trajectory_msgs::JointTrajectory& trajectory, bool blocking) for details on
    * how to specify the underlying trajectory.
-   * @param trajectory Trajectory given in FollowJointTrajectoryGoal format
+   * @param trajectory Trajectory given in FollowJointTrajectoryGoal format (non-const, since velocity could be limited: warnings appear)
    * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing
    */
-  void setJointTrajectory(const control_msgs::FollowJointTrajectoryGoal& trajectory, bool blocking=true);
+  void setJointTrajectory(control_msgs::FollowJointTrajectoryGoal& trajectory, bool blocking=true);
   
   //@}
   
@@ -255,8 +280,25 @@ public:
    * @return \c true if the joint vector exceeds limits, \c false otherwise
    */
   bool isExceedingJointLimits(const Eigen::Ref<const JointVector>& joint_values);
+    
+  /**
+   * @brief Stop any running transition.
+   */
+  void stopMoving();
   
   //@}
+  
+  
+  
+protected:
+  
+  /**
+   * @brief Check and adapt trajectory in order to satisfy joint restrictions.
+   * @param trajectory parameter to be checked and modified
+   * @return \c true if trajectory is feasible (some velocity adjustments could take place, check warnings),
+   *	     \c false if joint angle limits are exceeded.
+   */
+  bool verifyTrajectory(trajectory_msgs::JointTrajectory& trajectory);
   
 private:
     

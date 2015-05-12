@@ -59,10 +59,8 @@ int main( int argc, char** argv )
   joints[1] = M_PI/2;
 //   robot.setJoints(joints, 1.5);
     
-  
-  
-  trajectory_msgs::JointTrajectoryPoint pt;
-  
+ 
+
   // create trajectory to the single goal
   control_msgs::FollowJointTrajectoryGoal goal;
   goal.trajectory.joint_names = robot.getJointNames();
@@ -71,7 +69,7 @@ int main( int argc, char** argv )
   goal.trajectory.points.resize(1);
   goal.trajectory.points.front().time_from_start = ros::Duration(0);
   goal.trajectory.points.front().positions.assign(joints.data(), joints.data()+joints.rows());
-  
+//   goal.trajectory.points.front().time_from_start = ros::Duration(4.0);
   phantomx::JointVector vels;
   vels.setZero();
   vels[0] = 0.1;
@@ -79,8 +77,18 @@ int main( int argc, char** argv )
   
   goal.trajectory.points.front().velocities.assign(vels.data(), vels.data()+vels.rows());
 
-  robot.setJointTrajectory(goal);
+//   robot.setJointTrajectory(goal);
 //   robot.setJointsDefault();
+  robot.setJointVel(vels);
+  
+  ros::Duration d(5.0);
+  d.sleep();
+  vels[0] = -0.2;
+  vels[1] = -0.2;
+//   robot.setJointVel(vels);
+  
+//   d.sleep();
+  robot.stopMoving();
   
 // trajectory_msgs::JointTrajectoryPoint pt;
 // pt.positions;
