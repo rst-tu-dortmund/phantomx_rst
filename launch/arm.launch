@@ -6,6 +6,7 @@
 
   <param name="robot_description" command="$(find xacro)/xacro.py '$(find turtlebot_arm_description)/urdf/pincher_arm.urdf.xacro'"/>
   <node name="robot_state_pub" pkg="robot_state_publisher" type="robot_state_publisher"/>
+  <!--node if="$(arg simulation)" name="fake_joint_pub" pkg="turtlebot_arm_bringup" type="fake_joint_pub.py"/-->
   <node name="fake_joint_pub" pkg="turtlebot_arm_bringup" type="fake_joint_pub.py"/>
 
   <node name="arbotix" pkg="arbotix_python" type="arbotix_driver" output="screen">
@@ -14,6 +15,6 @@
   </node>
 
   <node name="gripper_controller" pkg="arbotix_controllers" type="gripper_controller" output="screen">
-    <rosparam file="$(find turtlebot_arm_bringup)/config/pincher_gripper.yaml" command="load" />
+    <rosparam file="$(find phantomx_rst)/config/pincher_gripper.yaml" command="load" />
   </node>
 </launch>
