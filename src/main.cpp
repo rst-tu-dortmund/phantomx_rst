@@ -51,44 +51,34 @@ int main( int argc, char** argv )
   phantomx::PhantomXControl robot;
   robot.initialize();
 
-  robot.setJointsDefault();
+  ROS_INFO("To default");
+  robot.setJointsDefault(ros::Duration(3));
   
-  phantomx::JointVector joints;
-  joints.setZero();
-  joints[0] = M_PI/2;
-  joints[1] = M_PI/2;
-//   robot.setJoints(joints, 1.5);
-    
- 
-
-  // create trajectory to the single goal
-  control_msgs::FollowJointTrajectoryGoal goal;
-  goal.trajectory.joint_names = robot.getJointNames();
-  goal.trajectory.header.stamp = ros::Time::now();
+  Eigen::Affine3d ee;
+  robot.getEndeffectorState(ee);
+  ROS_INFO_STREAM(ee.translation());
   
-  goal.trajectory.points.resize(1);
-  goal.trajectory.points.front().time_from_start = ros::Duration(0);
-  goal.trajectory.points.front().positions.assign(joints.data(), joints.data()+joints.rows());
-//   goal.trajectory.points.front().time_from_start = ros::Duration(4.0);
-  phantomx::JointVector vels;
-  vels.setZero();
-  vels[0] = 0.1;
-  vels[1] = 0.2;
-  
-  goal.trajectory.points.front().velocities.assign(vels.data(), vels.data()+vels.rows());
-
-//   robot.setJointTrajectory(goal);
-//   robot.setJointsDefault();
-  robot.setJointVel(vels);
+  ROS_INFO("New joint velocities");
+  robot.setJointVel({0.1, 0.2, 0, 0});
   
   ros::Duration d(5.0);
   d.sleep();
-  vels[0] = -0.2;
-  vels[1] = -0.2;
-//   robot.setJointVel(vels);
+
+  ROS_INFO("New joint velocities");
+  robot.setJointVel({-0.2, -0.2, 0, 0});
   
-//   d.sleep();
-  robot.stopMoving();
+  d.sleep();
+//   robot.stopMoving();
+  
+  ROS_INFO("To default");
+  robot.setJointsDefault();
+  
+  ROS_INFO("New joint values");
+  robot.setJoints({0,M_PI/2,0,0},{0,0.2,0,0});
+  
+  
+  robot.getEndeffectorState(ee);
+  ROS_INFO_STREAM(ee.translation());
   
 // trajectory_msgs::JointTrajectoryPoint pt;
 // pt.positions;

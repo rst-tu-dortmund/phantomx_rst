@@ -144,29 +144,29 @@ double PhantomXControl::getSlowestMaxSpeed() const
   
 void PhantomXControl::setJointsDefault(const ros::Duration& duration, bool blocking)
 {
-  setJoints(JointVector::Zero(), duration, blocking);
+  setJoints(JointVector::Zero(), duration, false, blocking);
 }
   
 void PhantomXControl::setJointsDefault(double speed, bool blocking)
 {
-  setJoints(JointVector::Zero(), speed, blocking);
+  setJoints(JointVector::Zero(), speed, false, blocking);
 }  
   
-void PhantomXControl::setJoints(const Eigen::Ref< const JointVector>& values, const ros::Duration& duration, bool blocking)
+void PhantomXControl::setJoints(const Eigen::Ref< const JointVector>& values, const ros::Duration& duration, bool relative, bool blocking)
 {
   trajectory_msgs::JointTrajectoryPoint state;
   state.positions.assign(values.data(), values.data()+values.rows());
   state.time_from_start = duration;
-  setJoints(state, blocking);  
+  setJoints(state, relative, blocking);  
 }
 
-void PhantomXControl::setJoints(const std::vector<double>& values, const ros::Duration& duration, bool blocking)
+void PhantomXControl::setJoints(const std::vector<double>& values, const ros::Duration& duration, bool relative, bool blocking)
 {
   Eigen::Map<const JointVector> values_map(values.data());
-  setJoints(values_map, duration, blocking);
+  setJoints(values_map, duration, relative, blocking);
 }
 
-void PhantomXControl::setJoints(const Eigen::Ref<const JointVector>& values, double speed, bool blocking)
+void PhantomXControl::setJoints(const Eigen::Ref<const JointVector>& values, double speed, bool relative, bool blocking)
 {
   
   JointVector current_states;  
@@ -187,24 +187,31 @@ void PhantomXControl::setJoints(const Eigen::Ref<const JointVector>& values, dou
   setJoints(values,ros::Duration(duration),blocking);
 }
   
-void PhantomXControl::setJoints(const std::vector<double>& values, double speed, bool blocking)
+void PhantomXControl::setJoints(const std::vector<double>& values, double speed, bool relative, bool blocking)
 {
   Eigen::Map<const JointVector> values_map(values.data());
-  setJoints(values_map, speed, blocking);
+  setJoints(values_map, speed, relative, blocking);
 }  
   
   
-void PhantomXControl::setJoints(const Eigen::Ref<const JointVector>& values, const Eigen::Ref<const JointVector>& speed, bool blocking)
+void PhantomXControl::setJoints(const Eigen::Ref<const JointVector>& values, const Eigen::Ref<const JointVector>& speed, bool relative, bool blocking)
 {
   trajectory_msgs::JointTrajectoryPoint state;
   state.positions.assign(values.data(), values.data()+values.rows());
   state.velocities.assign(speed.data(), speed.data()+speed.rows());
   state.time_from_start = ros::Duration(0); // use individual velocities
-  setJoints(state, blocking);
+  setJoints(state, relative, blocking);
+}
+  
+void PhantomXControl::setJoints(const std::vector<double>& values, const std::vector<double>& speed, bool relative, bool blocking)
+{
+  Eigen::Map<const JointVector> values_map(values.data());
+  Eigen::Map<const JointVector> vel_map(speed.data());
+  setJoints(values_map, vel_map, relative, blocking);
 }
   
 
-void PhantomXControl::setJoints(const trajectory_msgs::JointTrajectoryPoint& joint_state, bool blocking)
+void PhantomXControl::setJoints(const trajectory_msgs::JointTrajectoryPoint& joint_state, bool relative, bool blocking)
 {
   bool sync_duration_mode = joint_state.time_from_start.sec!=0 || joint_state.time_from_start.nsec!=0;
   if ( (sync_duration_mode && !joint_state.velocities.empty()) || (!sync_duration_mode && joint_state.velocities.empty()) )
@@ -212,8 +219,25 @@ void PhantomXControl::setJoints(const trajectory_msgs::JointTrajectoryPoint& joi
     ROS_ERROR("PhantomXControl::setJoints(): you must either specify a total duration (time_from_start) or individual velocities. Do not choose both.");
     return;
   }
-   
-  Eigen::Map<const JointVector> values(joint_state.positions.data()); // get an Eigen map for the position part for further computations.
+  
+  // create trajectory to the single goal
+  control_msgs::FollowJointTrajectoryGoal goal;
+  goal.trajectory.joint_names = _joint_names_arm;
+  goal.trajectory.header.stamp = ros::Time::now();
+  goal.trajectory.points.push_back(joint_state);
+  
+  trajectory_msgs::JointTrajectoryPoint& new_state = goal.trajectory.points.front(); // get reference for further calculations
+                                                                                     // since joint_state argument is read-only, we modify it here.
+  
+  // Get current joint angles 
+  JointVector current_states;  
+  getJointAngles(current_states); // we need to do a copy here, rather accessing '_joint_angles' directly,
+                                  // since receiving new states is multi threaded.
+  
+  Eigen::Map<JointVector> values(new_state.positions.data()); // get an Eigen map for the position part for further computations.
+  
+  if (relative)
+      values -= current_states; // this also changes values in "goal"
   
   // check joint angle limits
   if (isExceedingJointLimits(values))
@@ -224,19 +248,9 @@ void PhantomXControl::setJoints(const trajectory_msgs::JointTrajectoryPoint& joi
     return;
   }  
    
-  // Get current joint angles 
-  JointVector current_states;  
-  getJointAngles(current_states); // we need to do a copy here, rather accessing '_joint_angles' directly,
-				  // since receiving new states is multi threaded.
+
   
-  // create trajectory to the single goal
-  control_msgs::FollowJointTrajectoryGoal goal;
-  goal.trajectory.joint_names = _joint_names_arm;
-  goal.trajectory.header.stamp = ros::Time::now();
-  goal.trajectory.points.push_back(joint_state);
-  
-  trajectory_msgs::JointTrajectoryPoint& new_state = goal.trajectory.points.front(); // get reference for further calculations
-										     // since joint_state was read-only, we modify it here.
+
   
   // check velocities and/or duration before adding
   for (int i=0; i<new_state.velocities.size();++i)
@@ -272,9 +286,14 @@ void PhantomXControl::setJointVel(const Eigen::Ref<const JointVector>& velocitie
   JointVector current;
   getJointAngles(current);
   JointVector goal = (velocities.array()==0).select( current, (velocities.array()<0).select(_joint_lower_bounds,_joint_upper_bounds) );
-  setJoints(goal, velocities, false); // we do not want to block in case of commanding velocities
+  setJoints(goal, velocities, false, false); // we do not want to block in case of commanding velocities
 }
   
+void PhantomXControl::setJointVel(const std::vector<double>& velocities)
+{
+  Eigen::Map<const JointVector> vel_map(velocities.data());
+  setJointVel(vel_map);
+}  
   
   
 void PhantomXControl::setJointTrajectory(trajectory_msgs::JointTrajectory& trajectory, bool blocking)
@@ -290,7 +309,7 @@ void PhantomXControl::setJointTrajectory(control_msgs::FollowJointTrajectoryGoal
   ROS_ASSERT_MSG(_arm_action && _initialized, "PhantomXControl: class not initialized, call initialize().");
     
   // cancel any previous goals
-  _arm_action->cancelAllGoals();
+  stopMoving();
   
   // verify trajectory and adjust speeds if necessary
   bool feasible = verifyTrajectory(trajectory.trajectory); // returns false if angle limits are exceeded or something goes wrong
@@ -371,7 +390,37 @@ bool PhantomXControl::verifyTrajectory(trajectory_msgs::JointTrajectory& traject
   
 void PhantomXControl::stopMoving()
 {
-  _arm_action->cancelAllGoals();
+//     _arm_action->
+//     if (_arm_action->d)
+        _arm_action->cancelGoal();
+}
+  
+  
+void PhantomXControl::getEndeffectorState(Eigen::Affine3d& base_T_gripper)
+{
+    // get tf::Transform
+    tf::StampedTransform tf_transform;
+    getEndeffectorState(tf_transform);
+    tf::transformTFToEigen(tf_transform, base_T_gripper);
+}
+  
+void PhantomXControl::getEndeffectorState(tf::StampedTransform& base_T_gripper)
+{
+    try
+    {
+      _tf.lookupTransform("/arm_base_link", "/gripper_link", ros::Time(0), base_T_gripper); // TODO: param
+    }
+    catch (tf::TransformException &ex)
+    {
+      ROS_ERROR("%s",ex.what());
+    }
+}
+
+
+void PhantomXControl::getJacobian(RobotJacobian& jacobian)
+{
+    // assume only revolute joints
+    
 }
   
   

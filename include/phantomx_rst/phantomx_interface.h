@@ -53,9 +53,12 @@
 #include <trajectory_msgs/JointTrajectory.h>
 #include <control_msgs/GripperCommandAction.h>
 #include <sensor_msgs/JointState.h>
+#include <tf/transform_listener.h>
+#include <tf_conversions/tf_eigen.h>
 
 // eigen 
 #include <Eigen/Core>
+#include <Eigen/Geometry>
 
 // own stuff
 #include <phantomx_rst/misc.h>
@@ -68,6 +71,9 @@ namespace phantomx
   
 //! Typedef for a joint vector q=[q1,q2,q3,q4]^T  
 using JointVector = Eigen::Matrix<double,4,1>;
+
+//! Typedef for the robot jacobian 
+using RobotJacobian = Eigen::Matrix<double,6,4>;
 
 //! Struct for storing joint specific information
 // struct JointDetails
@@ -107,7 +113,7 @@ public:
   */
   void initialize(); 
   
-  /** @name Receive robot / joint state information */
+  /** @name Receive joint state information */
   //@{
   
   /**
@@ -165,41 +171,58 @@ public:
    * @brief Command new joint angles
    * @param values vector of new joint angles q=[q1,q2,q3,q4]^T
    * @param duration duration for the transition to the new joint state.
+   * @param relative if \c true, new joint states are relative to the previous one, otherwise absolute
    * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
    */
-  void setJoints(const Eigen::Ref<const JointVector>& values, const ros::Duration& duration=ros::Duration(5), bool blocking=true);
+  void setJoints(const Eigen::Ref<const JointVector>& values, const ros::Duration& duration=ros::Duration(5), bool relative=false, bool blocking=true);
   
   /**
    * @brief Command new joint angles
    * @param values std::vector< double > of new joint angles q=[q1,q2,q3,q4]^T
    * @param duration duration for the transition to the new joint state.
+   * @param relative if \c true, new joint states are relative to the previous one, otherwise absolute
    * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
+   * @remarks This overload accepts initializer-lists: <code> setJoints({0.3, 0, 0, 0}) </code>
    */
-  void setJoints(const std::vector<double>& values, const ros::Duration& duration=ros::Duration(5), bool blocking=true);
+  void setJoints(const std::vector<double>& values, const ros::Duration& duration=ros::Duration(5), bool relative=false, bool blocking=true);
   
   /**
    * @brief Command new joint angles
    * @param values vector of new joint angles q=[q1,q2,q3,q4]^T
    * @param speed speed for the transition w.r.t. the joint with the highest deviation from the final state.
+   * @param relative if \c true, new joint states are relative to the previous one, otherwise absolute
    * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
    */
-  void setJoints(const Eigen::Ref<const JointVector>& values, double speed, bool blocking=true);
+  void setJoints(const Eigen::Ref<const JointVector>& values, double speed, bool relative=false, bool blocking=true);
   
   /**
    * @brief Command new joint angles
    * @param values std::vector< double > of new joint angles q=[q1,q2,q3,q4]^T
    * @param speed speed for the transition w.r.t. the joint with the highest deviation from the final state.
+   * @param relative if \c true, new joint states are relative to the previous one, otherwise absolute
    * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
+   * @remarks This overload accepts initializer-lists: <code> setJoints({0.3, 0, 0, 0}) </code>
    */
-  void setJoints(const std::vector<double>& values, double speed, bool blocking=true);
+  void setJoints(const std::vector<double>& values, double speed, bool relative=false, bool blocking=true);
   
   /**
    * @brief Command new joint angles by commanding individual joint velocities
    * @param values vector of new joint angles q=[q1,q2,q3,q4]^T
    * @param speed vector containing joint velocities qdot = [omega1, omega2, omega3, omega4]^T
+   * @param relative if \c true, new joint states are relative to the previous one, otherwise absolute
    * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
    */
-  void setJoints(const Eigen::Ref<const JointVector>& values, const Eigen::Ref<const JointVector>& speed, bool blocking=true);
+  void setJoints(const Eigen::Ref<const JointVector>& values, const Eigen::Ref<const JointVector>& speed, bool relative=false, bool blocking=true);
+  
+  /**
+   * @brief Command new joint angles by commanding individual joint velocities
+   * @param values std::vector< double > of new joint angles q=[q1,q2,q3,q4]^T
+   * @param speed std::vector< double > containing joint velocities qdot = [omega1, omega2, omega3, omega4]^T
+   * @param relative if \c true, new joint states are relative to the previous one, otherwise absolute
+   * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
+   * @remarks This overload accepts initializer-lists: <code> setJoints({0.3, 0, 0, 0}, {0.1, 0, 0, 0}) </code>
+   */
+  void setJoints(const std::vector<double>& values, const std::vector<double>& speed, bool relative=false, bool blocking=true);
   
   /**
    * @brief Command new joint angles
@@ -207,9 +230,10 @@ public:
    * You can either specify a synchronous transition by setting \c joint_state.time_from_start to a given duration,
    * or you can set each joint velocity individual by providing \c joint_state.velocities.
    * @param joint_state trajectory_msgs::JointTrajectoryPoint type
+   * @param relative if \c true, new joint states are relative to the previous one, otherwise absolute
    * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
    */
-  void setJoints(const trajectory_msgs::JointTrajectoryPoint& joint_state, bool blocking=true);
+  void setJoints(const trajectory_msgs::JointTrajectoryPoint& joint_state, bool relative=false, bool blocking=true);
   
   //@}
   
@@ -225,6 +249,17 @@ public:
    * @param velocities vector of desired joint velocities
    */
   void setJointVel(const Eigen::Ref<const JointVector>& velocities);
+  
+  /**
+   * @brief Command robot by specifying joint velocities.
+   * 
+   * Be careful, this call is a non-blocking call and the robot will
+   * hold the specified velocities until joint limits are exceeded or
+   * a new command is sent.
+   * @remarks This overload accepts initializer-lists: <code> setJointVel({0.1, 0.1, 0, 0}) </code>
+   * @param velocities std::vector< double > of desired joint velocities
+   */
+  void setJointVel(const std::vector<double>& velocities);
   
   //@}
   
@@ -271,6 +306,16 @@ public:
   //@}
   
   
+  /** @name Kinematics and Differential Kinematics */
+  //@{
+  
+  void getEndeffectorState(Eigen::Affine3d& base_T_gripper);
+  void getEndeffectorState(tf::StampedTransform& base_T_gripper);
+  void getJacobian(RobotJacobian& jacobian);
+  
+  //@}
+  
+  
    /** @name Utility methods */
   //@{ 
 
@@ -311,6 +356,7 @@ private:
   ros::Subscriber _joints_sub;
   ros::CallbackQueue* _joints_sub_queue = nullptr; // seems to be deleted by ros
   std::unique_ptr<ros::AsyncSpinner> _joints_sub_spinner;
+  tf::TransformListener _tf;
   
   std::mutex _joints_mutex;
   JointVector _joint_angles = JointVector::Zero();
@@ -324,6 +370,7 @@ private:
   
   std::vector<std::string> _joint_names_arm; //!< Store names for all joints of the arm
 //   std::vector<JointDetails> _joint_details; //!< Store information of all joints of the arm (angle limits and max speed)
+  
   
   bool _initialized = false;
   

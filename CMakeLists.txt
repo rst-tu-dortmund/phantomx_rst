@@ -12,6 +12,8 @@ find_package(catkin REQUIRED
 roscpp
 actionlib
 control_msgs
+tf
+tf_conversions
 trajectory_msgs
 sensor_msgs
 cmake_modules
@@ -101,7 +103,7 @@ endif()
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES phantomx_rst
-  CATKIN_DEPENDS arbotix control_msgs trajectory_msgs sensor_msgs
+  CATKIN_DEPENDS actionlib arbotix control_msgs tf tf_conversions trajectory_msgs sensor_msgs cmake_modules
   DEPENDS system_lib Eigen3
 )
 
@@ -118,21 +120,24 @@ include_directories(
 )
 
 ## Declare a cpp library
-# add_library(phantomx_rst
-#   src/${PROJECT_NAME}/phantomx_rst.cpp
-# )
+add_library(phantomx_rst
+   src/phantomx_interface.cpp
+ )
+target_link_libraries(phantomx_rst
+   ${catkin_LIBRARIES}
+)
 
 ## Declare a cpp executable
-add_executable(phantomx src/main.cpp src/phantomx_interface.cpp)
+add_executable(phantomx src/main.cpp)
+target_link_libraries(phantomx phantomx_rst)
+
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
 # add_dependencies(phantomx_rst_node phantomx_rst_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(phantomx
-   ${catkin_LIBRARIES}
-)
+
 
 #############
 ## Install ##
