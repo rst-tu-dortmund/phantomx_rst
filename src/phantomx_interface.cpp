@@ -84,7 +84,7 @@ void PhantomXControl::initialize()
   {
     _map_joint_to_index[_joint_names_arm.at(i)] = i;
   }
-  
+   
   // get joint information (angle limits and max speed)
   for (int i=0; i<_joint_names_arm.size(); ++i)
   {
@@ -105,6 +105,81 @@ void PhantomXControl::initialize()
 	_joint_upper_bounds[i] = normalize_angle_rad( deg_to_rad( _joint_upper_bounds[i] ) ); // normalize to (-pi, pi]
 	_joint_max_speeds[i] = deg_to_rad( _joint_max_speeds[i] );
   }     
+  
+  // Setup kinematic model
+	
+  // get transform: base to first joint 
+  tf::StampedTransform transform;
+  try
+  {
+    _tf.waitForTransform("/arm_base_link", "/arm_shoulder_pan_servo_link", ros::Time(0), ros::Duration(10.0) );
+    _tf.lookupTransform("/arm_base_link", "/arm_shoulder_pan_servo_link", ros::Time(0), transform); // TODO: param
+  }
+  catch (tf::TransformException &ex)
+  {
+    ROS_ERROR("%s",ex.what());
+  }
+  Eigen::Affine3d base_T_arm;
+  tf::transformTFToEigen(transform, base_T_arm);
+  _kinematics.setBaseToArmTransform(base_T_arm);
+  ROS_INFO_STREAM(transform.getOrigin().getX() << " " << transform.getOrigin().getY() << " " << transform.getOrigin().getZ());
+  // get transform: first joint to second joint
+  try
+  {
+    _tf.waitForTransform("/arm_shoulder_pan_servo_link", "/arm_shoulder_lift_servo_link", ros::Time(0), ros::Duration(10.0) );
+    _tf.lookupTransform("/arm_shoulder_pan_servo_link", "/arm_shoulder_lift_servo_link", ros::Time(0), transform); // TODO: param
+  }
+  catch (tf::TransformException &ex)
+  {
+    ROS_ERROR("%s",ex.what());
+  }
+  Eigen::Affine3d j1_T_j2;
+  tf::transformTFToEigen(transform, j1_T_j2);
+  _kinematics.setJoint1ToJoint2Transform(j1_T_j2);
+  ROS_INFO_STREAM(transform.getOrigin().getX() << " " << transform.getOrigin().getY() << " " << transform.getOrigin().getZ());
+  // get transform: second joint to third joint
+  try
+  {
+    _tf.waitForTransform("/arm_shoulder_lift_servo_link", "/arm_elbow_flex_servo_link", ros::Time(0), ros::Duration(10.0) );
+    _tf.lookupTransform("/arm_shoulder_lift_servo_link", "/arm_elbow_flex_servo_link", ros::Time(0), transform); // TODO: param
+  }
+  catch (tf::TransformException &ex)
+  {
+    ROS_ERROR("%s",ex.what());
+  }
+  Eigen::Affine3d j2_T_j3;
+  tf::transformTFToEigen(transform, j2_T_j3);
+  _kinematics.setJoint2ToJoint3Transform(j2_T_j3);
+  ROS_INFO_STREAM(transform.getOrigin().getX() << " " << transform.getOrigin().getY() << " " << transform.getOrigin().getZ());
+  // get transform: forth joint to second joint
+  try
+  {
+    _tf.waitForTransform("/arm_elbow_flex_servo_link", "/arm_wrist_flex_servo_link", ros::Time(0), ros::Duration(10.0) );
+    _tf.lookupTransform("/arm_elbow_flex_servo_link", "/arm_wrist_flex_servo_link", ros::Time(0), transform); // TODO: param
+  }
+  catch (tf::TransformException &ex)
+  {
+    ROS_ERROR("%s",ex.what());
+  }
+  Eigen::Affine3d j3_T_j4;
+  tf::transformTFToEigen(transform, j3_T_j4);
+  _kinematics.setJoint3ToJoint4Transform(j3_T_j4);
+  ROS_INFO_STREAM(transform.getOrigin().getX() << " " << transform.getOrigin().getY() << " " << transform.getOrigin().getZ());
+  // get transform: last joint to gripper
+  try
+  {
+    _tf.waitForTransform("/arm_wrist_flex_servo_link", "/gripper_link", ros::Time(0), ros::Duration(10.0) );
+    _tf.lookupTransform("/arm_wrist_flex_servo_link", "/gripper_link", ros::Time(0), transform); // TODO: param
+  }
+  catch (tf::TransformException &ex)
+  {
+    ROS_ERROR("%s",ex.what());
+  }
+  Eigen::Affine3d arm_T_gripper;
+  tf::transformTFToEigen(transform, arm_T_gripper);
+  _kinematics.setArmToGripperTransform(arm_T_gripper);
+  ROS_INFO_STREAM(transform.getOrigin().getX() << " " << transform.getOrigin().getY() << " " << transform.getOrigin().getZ());
+  
   _initialized = true;
 }
 
@@ -390,9 +465,10 @@ bool PhantomXControl::verifyTrajectory(trajectory_msgs::JointTrajectory& traject
   
 void PhantomXControl::stopMoving()
 {
-//     _arm_action->
-//     if (_arm_action->d)
-        _arm_action->cancelGoal();
+    _arm_action->cancelAllGoals();
+    ros::Duration(0.001).sleep(); // we wait for a small time, since cancelling goal is scheduled in a separate thread.
+				  // But this small duration does not guarantee, that a goal immediately set after calling stop stopMoving
+				  // is actually excecuted.
 }
   
   
@@ -408,6 +484,7 @@ void PhantomXControl::getEndeffectorState(tf::StampedTransform& base_T_gripper)
 {
     try
     {
+      _tf.waitForTransform("/arm_base_link", "/gripper_link", ros::Time(0), ros::Duration(10.0) );
       _tf.lookupTransform("/arm_base_link", "/gripper_link", ros::Time(0), base_T_gripper); // TODO: param
     }
     catch (tf::TransformException &ex)
@@ -421,6 +498,89 @@ void PhantomXControl::getJacobian(RobotJacobian& jacobian)
 {
     // assume only revolute joints
     
+}
+
+bool PhantomXControl::testKinematicModel()
+{
+  Eigen::Affine3d real, model;
+  bool retval = true;
+  double err_temp = 0;
+  
+  // Default position
+  ROS_INFO("Test default position q=[0,0,0,0]");
+  setJointsDefault();
+  getEndeffectorState(real);
+  model = kinematics().computeForwardKinematics(JointVector::Zero());
+  err_temp = (model.translation()-real.translation()).norm();
+  if ( err_temp > 1e-2)
+  {
+    ROS_WARN_STREAM("Translation part error: " << err_temp << "\nreal: [" << real.translation().transpose()
+		    << "] model: [" << model.translation().transpose() << "]");
+    retval = false;
+  }
+  err_temp = ( model.rotation() * real.rotation().transpose() - Eigen::Matrix3d::Identity() ).norm();
+  if ( err_temp > 1e-2)
+  {
+    ROS_WARN("Rotation part error: %f", err_temp);
+    retval = false;
+  }
+  
+  JointVector values;
+  values.setZero();
+  
+  // Pos 1
+  ROS_INFO("Test position 1: q=[pi/2,0,0,0]");
+  values[0] = M_PI/2;
+  values[1] = 0;
+  values[2] = 0;
+  values[3] = 0;
+  setJoints(values,0.5);
+  getEndeffectorState(real);
+  model = kinematics().computeForwardKinematics(values);
+  err_temp = (model.translation()-real.translation()).norm();
+  if ( err_temp > 1e-2)
+  {
+    ROS_WARN_STREAM("Translation part error: " << err_temp << "\nreal: [" << real.translation().transpose()
+		    << "] model: [" << model.translation().transpose() << "]");
+    retval = false;
+  }
+  err_temp = ( model.rotation() * real.rotation().transpose() - Eigen::Matrix3d::Identity() ).norm();
+  if ( err_temp > 1e-2)
+  {
+    ROS_WARN("Rotation part error: %f", err_temp);
+    retval = false;
+  }
+  
+  // Pos 2
+  ROS_INFO("Test position 2: q=[pi/2,-pi/3,pi/5,-M_PI/2]");
+  values[0] = M_PI/2;
+  values[1] = -M_PI/3;
+  values[2] = M_PI/5;
+  values[3] = -M_PI/2;
+  setJoints(values,0.5);
+  getEndeffectorState(real);
+  model = kinematics().computeForwardKinematics(values);
+  err_temp = (model.translation()-real.translation()).norm();
+  if ( err_temp > 1e-2)
+  {
+    ROS_WARN_STREAM("Translation part error: " << err_temp << "\nreal: [" << real.translation().transpose()
+		    << "] model: [" << model.translation().transpose() << "]");
+    retval = false;
+  }
+  err_temp = ( model.rotation() * real.rotation().transpose() - Eigen::Matrix3d::Identity() ).norm();
+  if ( err_temp > 1e-2)
+  {
+    ROS_WARN("Rotation part error: %f", err_temp);
+    retval = false;
+  }
+  
+  
+  if (retval)
+    ROS_INFO_STREAM("testKinematicModel successfully completed.");
+  else
+    ROS_INFO_STREAM("testKinematicModel completed with errors.");
+  
+  return retval;
 }
   
   

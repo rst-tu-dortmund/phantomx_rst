@@ -50,14 +50,29 @@ int main( int argc, char** argv )
   
   phantomx::PhantomXControl robot;
   robot.initialize();
+  
+  robot.testKinematicModel();
+  
+//   phantomx::JointVector values;
+  
+//   Eigen::Affine3d ee = robot.kinematics().computeForwardKinematics(values);
+//   ROS_INFO_STREAM("\n" << ee.translation());
+//   ROS_INFO_STREAM("\n" << ee.rotation());
+  
+  
+//   robot.setJoints({0.1,0.1,0.1,0.1},0.1,true);
+  
+//   ROS_INFO("To default");
+//   robot.setJointsDefault(ros::Duration(3));
+  
+  
+//   Eigen::Affine3d ee;
+// //   robot.getEndeffectorState(ee);
+//   ROS_INFO_STREAM(ee.translation());
+  
 
-  ROS_INFO("To default");
-  robot.setJointsDefault(ros::Duration(3));
   
-  Eigen::Affine3d ee;
-  robot.getEndeffectorState(ee);
-  ROS_INFO_STREAM(ee.translation());
-  
+  /*
   ROS_INFO("New joint velocities");
   robot.setJointVel({0.1, 0.2, 0, 0});
   
@@ -79,6 +94,8 @@ int main( int argc, char** argv )
   
   robot.getEndeffectorState(ee);
   ROS_INFO_STREAM(ee.translation());
+  */
+  
   
 // trajectory_msgs::JointTrajectoryPoint pt;
 // pt.positions;

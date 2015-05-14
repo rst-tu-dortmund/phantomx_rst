@@ -122,6 +122,7 @@ include_directories(
 ## Declare a cpp library
 add_library(phantomx_rst
    src/phantomx_interface.cpp
+   src/kinematics.cpp
  )
 target_link_libraries(phantomx_rst
    ${catkin_LIBRARIES}

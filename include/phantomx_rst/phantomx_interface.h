@@ -56,33 +56,16 @@
 #include <tf/transform_listener.h>
 #include <tf_conversions/tf_eigen.h>
 
-// eigen 
-#include <Eigen/Core>
-#include <Eigen/Geometry>
-
 // own stuff
+#include <phantomx_rst/types.h>
 #include <phantomx_rst/misc.h>
-
+#include <phantomx_rst/kinematics.h>
 
 
 
 namespace phantomx
 {
   
-//! Typedef for a joint vector q=[q1,q2,q3,q4]^T  
-using JointVector = Eigen::Matrix<double,4,1>;
-
-//! Typedef for the robot jacobian 
-using RobotJacobian = Eigen::Matrix<double,6,4>;
-
-//! Struct for storing joint specific information
-// struct JointDetails
-// {
-//   double min_angle = 0;
-//   double max_angle = 0;
-//   double max_speed = 0;
-// };
-
 
 /**
  * @class PhantomXControl
@@ -313,6 +296,10 @@ public:
   void getEndeffectorState(tf::StampedTransform& base_T_gripper);
   void getJacobian(RobotJacobian& jacobian);
   
+  const KinematicModel& kinematics() const {return _kinematics;}
+  
+  bool testKinematicModel();
+  
   //@}
   
   
@@ -352,6 +339,8 @@ private:
   
   std::unique_ptr<actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction>> _arm_action; //!< Action client for trajectory following
   std::unique_ptr<actionlib::SimpleActionClient<control_msgs::GripperCommandAction>> _gripper_action; //!< Action client for gripper actions
+  
+  KinematicModel _kinematics;
   
   ros::Subscriber _joints_sub;
   ros::CallbackQueue* _joints_sub_queue = nullptr; // seems to be deleted by ros
