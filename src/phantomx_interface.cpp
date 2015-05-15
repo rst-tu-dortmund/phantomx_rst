@@ -108,6 +108,17 @@ void PhantomXControl::initialize()
   
   // Setup kinematic model
 	
+  // Wait for joint_state messages
+  while (!_joint_values_received && ros::ok())
+  {
+      ROS_INFO_ONCE("Waiting for joint_states message...");
+      _joints_sub_queue->callAvailable();
+  }
+  // Drive into default position
+  ROS_INFO("Driving into default position in order to setup kinematic model...");
+  setJointsDefault(0.2);
+
+  
   // get transform: base to first joint 
   tf::StampedTransform transform;
   try
@@ -121,8 +132,8 @@ void PhantomXControl::initialize()
   }
   Eigen::Affine3d base_T_arm;
   tf::transformTFToEigen(transform, base_T_arm);
-  _kinematics.setBaseToArmTransform(base_T_arm);
-  ROS_INFO_STREAM(transform.getOrigin().getX() << " " << transform.getOrigin().getY() << " " << transform.getOrigin().getZ());
+  _kinematics.setBaseToJoint1Transform(base_T_arm);
+
   // get transform: first joint to second joint
   try
   {
@@ -136,7 +147,7 @@ void PhantomXControl::initialize()
   Eigen::Affine3d j1_T_j2;
   tf::transformTFToEigen(transform, j1_T_j2);
   _kinematics.setJoint1ToJoint2Transform(j1_T_j2);
-  ROS_INFO_STREAM(transform.getOrigin().getX() << " " << transform.getOrigin().getY() << " " << transform.getOrigin().getZ());
+
   // get transform: second joint to third joint
   try
   {
@@ -150,7 +161,7 @@ void PhantomXControl::initialize()
   Eigen::Affine3d j2_T_j3;
   tf::transformTFToEigen(transform, j2_T_j3);
   _kinematics.setJoint2ToJoint3Transform(j2_T_j3);
-  ROS_INFO_STREAM(transform.getOrigin().getX() << " " << transform.getOrigin().getY() << " " << transform.getOrigin().getZ());
+
   // get transform: forth joint to second joint
   try
   {
@@ -164,7 +175,7 @@ void PhantomXControl::initialize()
   Eigen::Affine3d j3_T_j4;
   tf::transformTFToEigen(transform, j3_T_j4);
   _kinematics.setJoint3ToJoint4Transform(j3_T_j4);
-  ROS_INFO_STREAM(transform.getOrigin().getX() << " " << transform.getOrigin().getY() << " " << transform.getOrigin().getZ());
+
   // get transform: last joint to gripper
   try
   {
@@ -177,10 +188,10 @@ void PhantomXControl::initialize()
   }
   Eigen::Affine3d arm_T_gripper;
   tf::transformTFToEigen(transform, arm_T_gripper);
-  _kinematics.setArmToGripperTransform(arm_T_gripper);
-  ROS_INFO_STREAM(transform.getOrigin().getX() << " " << transform.getOrigin().getY() << " " << transform.getOrigin().getZ());
+  _kinematics.setJoint4ToGripperTransform(arm_T_gripper);
   
   _initialized = true;
+  ROS_INFO("Initialization completed.");
 }
 
 void PhantomXControl::jointStateCallback(const sensor_msgs::JointStateConstPtr& msg)
@@ -191,6 +202,8 @@ void PhantomXControl::jointStateCallback(const sensor_msgs::JointStateConstPtr& 
     int joint_idx = _map_joint_to_index[msg->name[i]];
     _joint_angles[joint_idx] = msg->position[i];
   }
+  if (!_joint_values_received)
+      _joint_values_received = true;
 }
 
 void PhantomXControl::getJointAngles(Eigen::Ref<JointVector> values_out)
@@ -243,6 +256,8 @@ void PhantomXControl::setJoints(const std::vector<double>& values, const ros::Du
 
 void PhantomXControl::setJoints(const Eigen::Ref<const JointVector>& values, double speed, bool relative, bool blocking)
 {
+  ROS_ASSERT_MSG(speed>0, "You cannot command a zero velocity.");
+//   ROS_ASSERT_MSG(_initialized, "Setting new joints with a desired velocity requires querying current joint values, that is only possible after initialization is completed.");
   
   JointVector current_states;  
   getJointAngles(current_states); // we need to do a copy here, rather accessing '_joint_angles' directly,
@@ -251,15 +266,19 @@ void PhantomXControl::setJoints(const Eigen::Ref<const JointVector>& values, dou
   // get maximum absolute angle difference (TODO: do we need to normalize the angles before taking abs()?)
   double max_diff = (values - current_states).cwiseAbs().maxCoeff();
 
+  if (max_diff<0.001)
+      return; // we are already there...
+
   // get time corresponding to the distace max_diff and the given speed value
   // assume a constant velocity: phi=omega*t
   double duration = max_diff/speed;
+  
   if (duration<0)
   {
     ROS_ERROR("PhantomXControl::setJoints(): obtained an invalid (negative) duration. Cannot set new joint values.");
     return;
   }
-  setJoints(values,ros::Duration(duration),blocking);
+  setJoints(values,ros::Duration(duration), relative, blocking);
 }
   
 void PhantomXControl::setJoints(const std::vector<double>& values, double speed, bool relative, bool blocking)
@@ -322,11 +341,7 @@ void PhantomXControl::setJoints(const trajectory_msgs::JointTrajectoryPoint& joi
 		    << _joint_lower_bounds.transpose() << "]\nupper bounds: [" << _joint_upper_bounds.transpose() << "]");
     return;
   }  
-   
-
-  
-
-  
+     
   // check velocities and/or duration before adding
   for (int i=0; i<new_state.velocities.size();++i)
   {
@@ -381,7 +396,7 @@ void PhantomXControl::setJointTrajectory(trajectory_msgs::JointTrajectory& traje
 
 void PhantomXControl::setJointTrajectory(control_msgs::FollowJointTrajectoryGoal& trajectory, bool blocking)
 {
-  ROS_ASSERT_MSG(_arm_action && _initialized, "PhantomXControl: class not initialized, call initialize().");
+  ROS_ASSERT_MSG(_arm_action, "PhantomXControl: class not initialized, call initialize().");
     
   // cancel any previous goals
   stopMoving();
@@ -496,84 +511,40 @@ void PhantomXControl::getEndeffectorState(tf::StampedTransform& base_T_gripper)
 
 void PhantomXControl::getJacobian(RobotJacobian& jacobian)
 {
-    // assume only revolute joints
-    
+    JointVector joint_angles;
+    getJointAngles(joint_angles);
+    kinematics().computeJacobian(joint_angles, jacobian);
 }
 
 bool PhantomXControl::testKinematicModel()
 {
-  Eigen::Affine3d real, model;
+
   bool retval = true;
-  double err_temp = 0;
   
   // Default position
-  ROS_INFO("Test default position q=[0,0,0,0]");
-  setJointsDefault();
-  getEndeffectorState(real);
-  model = kinematics().computeForwardKinematics(JointVector::Zero());
-  err_temp = (model.translation()-real.translation()).norm();
-  if ( err_temp > 1e-2)
-  {
-    ROS_WARN_STREAM("Translation part error: " << err_temp << "\nreal: [" << real.translation().transpose()
-		    << "] model: [" << model.translation().transpose() << "]");
-    retval = false;
-  }
-  err_temp = ( model.rotation() * real.rotation().transpose() - Eigen::Matrix3d::Identity() ).norm();
-  if ( err_temp > 1e-2)
-  {
-    ROS_WARN("Rotation part error: %f", err_temp);
-    retval = false;
-  }
-  
   JointVector values;
   values.setZero();
-  
+  retval = retval && testKinematicModel(values);
+     
   // Pos 1
-  ROS_INFO("Test position 1: q=[pi/2,0,0,0]");
-  values[0] = M_PI/2;
-  values[1] = 0;
-  values[2] = 0;
-  values[3] = 0;
-  setJoints(values,0.5);
-  getEndeffectorState(real);
-  model = kinematics().computeForwardKinematics(values);
-  err_temp = (model.translation()-real.translation()).norm();
-  if ( err_temp > 1e-2)
-  {
-    ROS_WARN_STREAM("Translation part error: " << err_temp << "\nreal: [" << real.translation().transpose()
-		    << "] model: [" << model.translation().transpose() << "]");
-    retval = false;
-  }
-  err_temp = ( model.rotation() * real.rotation().transpose() - Eigen::Matrix3d::Identity() ).norm();
-  if ( err_temp > 1e-2)
-  {
-    ROS_WARN("Rotation part error: %f", err_temp);
-    retval = false;
-  }
+  values << -M_PI/2, 0, 0, 0;
+  retval = retval && testKinematicModel(values);
   
   // Pos 2
-  ROS_INFO("Test position 2: q=[pi/2,-pi/3,pi/5,-M_PI/2]");
-  values[0] = M_PI/2;
-  values[1] = -M_PI/3;
-  values[2] = M_PI/5;
-  values[3] = -M_PI/2;
-  setJoints(values,0.5);
-  getEndeffectorState(real);
-  model = kinematics().computeForwardKinematics(values);
-  err_temp = (model.translation()-real.translation()).norm();
-  if ( err_temp > 1e-2)
-  {
-    ROS_WARN_STREAM("Translation part error: " << err_temp << "\nreal: [" << real.translation().transpose()
-		    << "] model: [" << model.translation().transpose() << "]");
-    retval = false;
-  }
-  err_temp = ( model.rotation() * real.rotation().transpose() - Eigen::Matrix3d::Identity() ).norm();
-  if ( err_temp > 1e-2)
-  {
-    ROS_WARN("Rotation part error: %f", err_temp);
-    retval = false;
-  }
+  values << 0, M_PI/3, 0, 0;
+  retval = retval && testKinematicModel(values);
   
+  // Pos 3
+  values << 0, 0, M_PI/2, 0;
+  retval = retval && testKinematicModel(values);
+  
+  // Pos 4
+  values << 0, 0, 0, -M_PI/2;
+  retval = retval && testKinematicModel(values);
+  
+  // Pos 5
+  values << M_PI/2, -M_PI/3, M_PI/5, -M_PI/2;
+  retval = retval && testKinematicModel(values);
   
   if (retval)
     ROS_INFO_STREAM("testKinematicModel successfully completed.");
@@ -581,6 +552,42 @@ bool PhantomXControl::testKinematicModel()
     ROS_INFO_STREAM("testKinematicModel completed with errors.");
   
   return retval;
+}
+  
+bool PhantomXControl::testKinematicModel(const Eigen::Ref<const JointVector>& joint_values)
+{
+  bool retval = true;
+
+  ROS_INFO_STREAM("Testing joint configuration: q=[" << joint_values.transpose() << "]...");
+  
+  // command robot
+  setJoints(joint_values,ros::Duration(5));
+  // get current state
+  Eigen::Affine3d real;
+  getEndeffectorState(real);
+  // compute forward kinematics using the model class
+  Eigen::Affine3d model = kinematics().computeForwardKinematics(joint_values);
+  bool trans_flag = model.translation().isApprox( real.translation(), 0.1 );
+  if ( !trans_flag)
+  {
+    ROS_WARN_STREAM("Translation part does not match\nreal: [" << real.translation().transpose()
+                    << "] model: [" << model.translation().transpose() << "]");
+    retval = false;
+  }
+  Eigen::Quaterniond qreal = Eigen::Quaterniond(real.rotation());
+  Eigen::Quaterniond qmodel = Eigen::Quaterniond(model.rotation());
+  bool rot_flag = qmodel.isApprox( qreal, 0.1 ) || qmodel.isApprox( Eigen::Quaterniond(-qreal.w(),-qreal.x(),-qreal.y(),-qreal.z()), 0.1 );
+  if ( !rot_flag )
+  {
+    ROS_WARN_STREAM("Rotation part does not match\nreal: [" << qreal.w() << "," << qreal.vec().transpose()
+             << "] model: [" << qmodel.w() << "," << qmodel.vec().transpose() << "]");
+    tf::Quaternion tf_qmodel;
+    tf::quaternionEigenToTF(qmodel,tf_qmodel);
+    ROS_WARN_STREAM("yaw: " << tf::getYaw(tf_qmodel));
+    retval = false;
+  }
+  ROS_INFO("Test finished.");
+  return retval;  
 }
   
   

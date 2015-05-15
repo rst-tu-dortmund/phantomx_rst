@@ -51,54 +51,7 @@ int main( int argc, char** argv )
   phantomx::PhantomXControl robot;
   robot.initialize();
   
-  robot.testKinematicModel();
-  
-//   phantomx::JointVector values;
-  
-//   Eigen::Affine3d ee = robot.kinematics().computeForwardKinematics(values);
-//   ROS_INFO_STREAM("\n" << ee.translation());
-//   ROS_INFO_STREAM("\n" << ee.rotation());
-  
-  
-//   robot.setJoints({0.1,0.1,0.1,0.1},0.1,true);
-  
-//   ROS_INFO("To default");
-//   robot.setJointsDefault(ros::Duration(3));
-  
-  
-//   Eigen::Affine3d ee;
-// //   robot.getEndeffectorState(ee);
-//   ROS_INFO_STREAM(ee.translation());
-  
 
-  
-  /*
-  ROS_INFO("New joint velocities");
-  robot.setJointVel({0.1, 0.2, 0, 0});
-  
-  ros::Duration d(5.0);
-  d.sleep();
-
-  ROS_INFO("New joint velocities");
-  robot.setJointVel({-0.2, -0.2, 0, 0});
-  
-  d.sleep();
-//   robot.stopMoving();
-  
-  ROS_INFO("To default");
-  robot.setJointsDefault();
-  
-  ROS_INFO("New joint values");
-  robot.setJoints({0,M_PI/2,0,0},{0,0.2,0,0});
-  
-  
-  robot.getEndeffectorState(ee);
-  ROS_INFO_STREAM(ee.translation());
-  */
-  
-  
-// trajectory_msgs::JointTrajectoryPoint pt;
-// pt.positions;
   
   /*
   actionlib::SimpleActionClient<control_msgs::GripperCommandAction> gripper_ac("/gripper_controller/gripper_action", true);

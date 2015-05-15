@@ -292,13 +292,47 @@ public:
   /** @name Kinematics and Differential Kinematics */
   //@{
   
+  /**
+   * @brief Get the transformation matrix to the gripper(TCP) expressed in the robot base System
+   * @param[out] base_T_gripper Eigen::Affine3d transformation type
+   */
   void getEndeffectorState(Eigen::Affine3d& base_T_gripper);
+  
+  /**
+   * @brief Get the transformation matrix to the gripper(TCP) expressed in the robot base System
+   * @param[out] base_T_gripper tf transformation type
+   */
   void getEndeffectorState(tf::StampedTransform& base_T_gripper);
+  
+  /**
+   * @brief Compute the geometric jacobian of the endeffector/gripper velocity w.r.t. to the base frame.
+   * 
+   * The geometric jacobian denotes the linear relationship between the endeffector velocity and the joint angle 
+   * velocities w.r.t. to the robot base frame: v = J*qdot.
+   * Each row corresponds to the joint velocities and each row correspond to the endeffector velocity.
+   * The resulting matrix is therefore 6x4.
+   * The rotational component (lower 3x4 submatrix) expresses the rotational component of the end effector velocity
+   * in terms of angular velocity (angle and axis representation). 
+   * @see KinematicModel::computeJacobian
+   * @remarks This is not the analytic robot jacobian!
+   * @param[out] jacobian The 6x4 jacobian will be written into this matrix.
+   */
   void getJacobian(RobotJacobian& jacobian);
   
+  /**
+   * @brief Access the kinematics model of the robot
+   * 
+   * Use the kinematics model in order to calculate/simulate forward/differential/inverse kinematics
+   * for arbitrary joint states
+   * @return KinematicModel object (read-only)
+   */
   const KinematicModel& kinematics() const {return _kinematics;}
   
+  
+  //! A small test script that drives into a predefined set of joint configuratoins in order to test the underlying KinematicModel
   bool testKinematicModel();
+  //! Drives to a joint configuration and verify the forward kinematics of the underlying KinematicModel
+  bool testKinematicModel(const Eigen::Ref<const JointVector>& joint_values);
   
   //@}
   
@@ -332,6 +366,7 @@ protected:
    */
   bool verifyTrajectory(trajectory_msgs::JointTrajectory& trajectory);
   
+  
 private:
     
   void jointStateCallback(const sensor_msgs::JointStateConstPtr& msg);
@@ -345,6 +380,7 @@ private:
   ros::Subscriber _joints_sub;
   ros::CallbackQueue* _joints_sub_queue = nullptr; // seems to be deleted by ros
   std::unique_ptr<ros::AsyncSpinner> _joints_sub_spinner;
+  bool _joint_values_received = false;
   tf::TransformListener _tf;
   
   std::mutex _joints_mutex;
