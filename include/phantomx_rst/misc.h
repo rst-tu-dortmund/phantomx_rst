@@ -41,6 +41,12 @@
 
 #include <memory>
 #include <math.h>
+#include <type_traits>
+
+#include <phantomx_rst/types.h>
+
+#include <ros/console.h>
+#include <Eigen/Geometry>
 
   
 
@@ -103,6 +109,40 @@ namespace phantomx
     return fmod(angle, 360.);
   }
   
+  /**
+   * @brief Check if x is inside the interval [l, u]
+   * @param l lower bound
+   * @param x value to be checked
+   * @param u upper bound
+   * @tparam T numerical/scalar type
+   * @return \c true if inside, otherwise \c false
+   */
+  template <typename T, typename std::enable_if<std::is_scalar<T>::value>::type* = nullptr>
+  inline bool isInsideInterval(T l, T x, T u) 
+  {
+    if (x < l)
+      return false;
+    if (x > u)
+      return false;
+    return true;
+  }
+  
+  /**
+   * @brief Check if each component of vector x is inside the corresponding interval [vec_l, vec_u]
+   * @param l lower bound vector
+   * @param x vector to be checked
+   * @param u upper bound vector
+   * @return \c true if inside, otherwise \c false
+   */
+  inline bool isInsideInterval(const Eigen::Ref<const Eigen::VectorXd>& l, const Eigen::Ref<const Eigen::VectorXd>& x, const Eigen::Ref<const Eigen::VectorXd>& u) 
+  {
+    if ( (x.array() < l.array()).all() )
+      return false;
+    if ( (x.array() > u.array()).all() )
+      return false;
+    return true;
+  }
+  
   
   /**
    * @brief Bound x to the interval [l, u]
@@ -151,6 +191,45 @@ namespace phantomx
       return l;
     return x;
   }    
+    
+  /**
+   * @brief Convert roll-pitch-yaw angles to a 3d rotation matrix.
+   * @param rpy vector containing [roll,pitch,yaw] angles
+   * @return 3x3 rotation matrix
+   */  
+  inline Eigen::Matrix3d rpyToRotMat(const Eigen::Ref<const RpyVector>& rpy)
+  {    
+    return (Eigen::AngleAxisd(rpy.coeffRef(2), Eigen::Vector3d::UnitZ()) * Eigen::AngleAxisd(rpy.coeffRef(1), Eigen::Vector3d::UnitY()) * Eigen::AngleAxisd(rpy.coeffRef(0), Eigen::Vector3d::UnitX())).toRotationMatrix();
+  }
+  
+  
+  /**
+   * @brief Convert a rotation matrix to roll-pitch-yaw angles
+   * @param rot_mat 3x3 rotation matrix
+   * @return vector contining [roll,pitch,yaw] angles
+   */
+  inline RpyVector rotMatToRpy(const Eigen::Ref<const Eigen::Matrix3d>& rot_mat)
+  {    
+    // see http://de.wikipedia.org/wiki/Roll-Nick-Gier-Winkel
+    RpyVector rpy;
+    rpy.coeffRef(2) = std::atan2( rot_mat.coeffRef(1,0), rot_mat.coeffRef(0,0) ); //atan2(r21,r11)
+    rpy.coeffRef(1) = std::atan2( -rot_mat.coeffRef(2,0), sqrt( rot_mat.coeffRef(0,0)*rot_mat.coeffRef(0,0) + rot_mat.coeffRef(1,0)*rot_mat.coeffRef(1,0) ) ); //atan2(-r31,sqrt(r11^2 + r21^2))
+    rpy.coeffRef(0) = std::atan2( rot_mat.coeffRef(2,1), rot_mat.coeffRef(2,2)  ); //atan2(r32,r33)
+    
+    // check for singularities
+    if (fabs(rpy.coeffRef(1)-M_PI/2)<1e-4)
+    {
+      rpy.coeffRef(2) = 0;
+      rpy.coeffRef(0) = std::atan2( rot_mat.coeffRef(0,1), rot_mat.coeffRef(1,1)  ); //atan2(r12,r22)
+    } 
+    else if (fabs(rpy.coeffRef(1)+M_PI/2)<1e-4)
+    {
+      rpy.coeffRef(2) = 0;
+      rpy.coeffRef(0) = -std::atan2( rot_mat.coeffRef(0,1), rot_mat.coeffRef(1,1)  ); //-atan2(r12,r22)
+    }
+    return rpy;
+  }
+    
     
   
   /**

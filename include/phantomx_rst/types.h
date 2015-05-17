@@ -50,6 +50,9 @@ namespace phantomx
 //! Typedef for a joint vector q=[q1,q2,q3,q4]^T  
 using JointVector = Eigen::Matrix<double,4,1>;
 
+//! Typedef for a roll-pitch-yaw vector [roll,pitch,yaw]
+using RpyVector = Eigen::Vector3d;
+
 //! Typedef for the robot jacobian 
 using RobotJacobian = Eigen::Matrix<double,6,4>;
 

@@ -50,6 +50,8 @@ PhantomXControl::~PhantomXControl()
 {
   if (_joints_sub_spinner)
     _joints_sub_spinner->stop();
+  if (_arm_action)
+    _arm_action->cancelAllGoals();
 }
   
 void PhantomXControl::initialize()
@@ -189,6 +191,9 @@ void PhantomXControl::initialize()
   Eigen::Affine3d arm_T_gripper;
   tf::transformTFToEigen(transform, arm_T_gripper);
   _kinematics.setJoint4ToGripperTransform(arm_T_gripper);
+  
+  // notify the kinematics model about lower and upper joint limits
+  _kinematics.setLowerAndUpperJointLimits(_joint_lower_bounds, _joint_upper_bounds);
   
   _initialized = true;
   ROS_INFO("Initialization completed.");

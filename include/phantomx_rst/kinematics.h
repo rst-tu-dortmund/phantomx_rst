@@ -94,15 +94,29 @@ public:
   virtual ~KinematicModel() {};
   
   //! set the coordinate transformation from the base coordinate system to the system of joint 1 (for <b>q=0</b>)
-  void setBaseToJoint1Transform(const Eigen::Affine3d& base_T_arm) {_base_T_arm = base_T_arm;};
+  void setBaseToJoint1Transform(const Eigen::Affine3d& base_T_j1)
+  {
+    _base_T_j1 = base_T_j1;
+    _j1_T_base = base_T_j1.inverse();
+  };
   //! set the coordinate transformation from joint 1 to joint 2 for <b>q=0</b> (joint 1 rotates around y)
-  void setJoint1ToJoint2Transform(const Eigen::Affine3d& j1_T_j2) {_j1_T_j2 = j1_T_j2;};
+  void setJoint1ToJoint2Transform(const Eigen::Affine3d& j1_T_j2)
+  {
+    _j1_T_j2 = j1_T_j2;
+    _j2_T_j1 = j1_T_j2.inverse();
+  };
   //! set the coordinate transformation from joint 2 to joint 3 for <b>q=0</b> (joint 2 rotates around y)
   void setJoint2ToJoint3Transform(const Eigen::Affine3d& j2_T_j3) {_j2_T_j3 = j2_T_j3;};
   //! set the coordinate transformation from joint 3 to joint 4 for <b>q=0</b> (joint 3 rotates around y)
   void setJoint3ToJoint4Transform(const Eigen::Affine3d& j3_T_j4) {_j3_T_j4 = j3_T_j4;};
   //! set the coordinate transformation from joint 4 to the gripper (TCP) coordiante system for <b>q=0</b> (joint 3 rotates around y)
-  void setJoint4ToGripperTransform(const Eigen::Affine3d& arm_T_gripper) {_arm_T_gripper = arm_T_gripper;};
+  void setJoint4ToGripperTransform(const Eigen::Affine3d& j4_T_gripper) {_j4_T_gripper = j4_T_gripper;};
+  //! set lower and upper joint limits
+  void setLowerAndUpperJointLimits(const Eigen::Ref<const JointVector> lower_bounds, const Eigen::Ref<const JointVector> upper_bounds)
+  {
+    _joint_lower_bounds = lower_bounds;
+    _joint_upper_bounds = upper_bounds;
+  }
   
   /**
    * @brief Compute the forward kinematics according to the specified joint angles.
@@ -132,17 +146,26 @@ public:
    */
   void computeJacobian(const Eigen::Ref<const JointVector>& joint_values, RobotJacobian& jacobian) const;
   
-  void inverseKinematics(const Eigen::Ref<const JointVector>& joint_values);
+  bool computeInverseKinematics(const Eigen::Affine3d& desired_pose, Eigen::Ref<JointVector> joint_values, bool force_yaw = false) const;
 
- 
+protected:
+  
+  bool computeIk3LinkPlanar(const Eigen::Affine3d& j2_T_pose, Eigen::Ref<Eigen::Vector3d> values, bool elbow_up) const;
+  bool computeIk3LinkPlanarElbowUpAndDown(const Eigen::Affine3d& j2_T_pose, Eigen::Ref<Eigen::Vector3d> values) const;
   
 private:
     
-  Eigen::Affine3d _base_T_arm = Eigen::Affine3d::Identity();
+  Eigen::Affine3d _base_T_j1 = Eigen::Affine3d::Identity();
   Eigen::Affine3d _j1_T_j2 = Eigen::Affine3d::Identity();
   Eigen::Affine3d _j2_T_j3 = Eigen::Affine3d::Identity();
   Eigen::Affine3d _j3_T_j4 = Eigen::Affine3d::Identity();
-  Eigen::Affine3d _arm_T_gripper = Eigen::Affine3d::Identity();
+  Eigen::Affine3d _j4_T_gripper = Eigen::Affine3d::Identity();
+  
+  Eigen::Affine3d _j1_T_base = Eigen::Affine3d::Identity(); // the inverse of _base_T_j1, computed in the accessor method
+  Eigen::Affine3d _j2_T_j1 = Eigen::Affine3d::Identity(); // the inverse of _j1_T_j2, computed in the accessor method
+  
+  JointVector _joint_lower_bounds = JointVector::Constant(-M_PI);
+  JointVector _joint_upper_bounds = JointVector::Constant(M_PI);
   
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
