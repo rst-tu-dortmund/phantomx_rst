@@ -45,6 +45,7 @@
 
 #include <phantomx_rst/types.h>
 
+#include <ros/ros.h>
 #include <ros/console.h>
 #include <Eigen/Geometry>
 

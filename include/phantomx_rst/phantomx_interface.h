@@ -348,12 +348,45 @@ public:
   bool isExceedingJointLimits(const Eigen::Ref<const JointVector>& joint_values);
     
   /**
+   * @brief Check if a given set of joint values leads to a self-collision.
+   * 
+   * Currently we test only, that the end-effector does not collide with
+   * the robot base. The robot base is modeled as a rectangular with infinite depth (into the ground).
+   * Additionally, the fourth joint is tested.
+   * @todo Improve collision checking.
+   * @todo Parameters of the rectangle are hardcoded now. Declare them as config paramteres.
+   * @param joint_values vector of joint values q=[q1,q2,q3,q4]^T
+   * @return \c true if the joint vector does not self-collide, \c false otherwise
+   */
+  bool checkSelfCollision(const Eigen::Ref<const JointVector>& joint_values);
+  
+  /**
    * @brief Stop any running transition.
    */
   void stopMoving();
   
+  /**
+   * @brief Signal handler that terminates all actions before calling ros::shutdown().
+   * 
+   * The signal handler will be automatically overwritten in the initialize method.
+   */
+  static void phantomXSigHandler(int sig)
+  {
+    // cancel the all goals
+    actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> ac_arm("/arm_controller/follow_joint_trajectory", true);
+    ac_arm.waitForServer(ros::Duration(0.1));
+    ac_arm.cancelAllGoals();
+    actionlib::SimpleActionClient<control_msgs::GripperCommandAction> ac_gripper("/gripper_controller/gripper_action", true);
+    ac_gripper.waitForServer(ros::Duration(0.1));
+    ac_gripper.cancelAllGoals();
+    // Default ros sigint handler
+    ros::shutdown();
+  } 
+  
   //@}
   
+
+
   
   
 protected:
@@ -382,6 +415,9 @@ private:
   std::unique_ptr<ros::AsyncSpinner> _joints_sub_spinner;
   bool _joint_values_received = false;
   tf::TransformListener _tf;
+  
+  Eigen::Affine3d _base_T_j1 = Eigen::Affine3d::Identity(); //!< Coordinate transformation from the base to the first joint
+  Eigen::Affine3d _j1_T_base = Eigen::Affine3d::Identity(); //!< Coordinate transformation from the first joint to the base
   
   std::mutex _joints_mutex;
   JointVector _joint_angles = JointVector::Zero();

@@ -157,9 +157,11 @@ public:
    * The implementation accounts for joint limits.
    * If no solution within the joint limits is found, the algorihm tries to set q1=q1+pi and solves the IK again
    * resulting in a similar gripper position but with switched sides (of the gripper itself).
+   * @test This method requires more testing.
    * @param desired_pose Desired 6D poses but with some limitations mentioned above.
    * @param[out] joint_values the corresponding joint values. Initit them with the current joint values, in order to choose
    *                          either the elbow up or elbow down solution depending on the current angular distance.
+   * @return \c true if a solution was found, \c false otherwise.
    */  
   bool computeInverseKinematics(const Eigen::Affine3d& desired_pose, Eigen::Ref<JointVector> joint_values) const;
 

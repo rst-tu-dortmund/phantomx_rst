@@ -173,7 +173,6 @@ bool KinematicModel::computeInverseKinematics(const Eigen::Affine3d& desired_pos
       // see http://math.stackexchange.com/questions/90081/quaternion-distance
       double angle1 =  1 - pow(quat_desired.dot(quat_cand1),2);  //normalize_angle_rad(acos(quat_cand1.angularDistance(quat_desired)));
       double angle2 = 1 - pow(quat_desired.dot(quat_cand2),2); //normalize_angle_rad(acos(quat_cand2.angularDistance(quat_desired)));
-      ROS_INFO_STREAM("angle1: " << angle1 << " angle: " << angle2);
       if (fabs(angle1)<fabs(angle2))
           joint_values = q_cand1;
       else

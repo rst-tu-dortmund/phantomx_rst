@@ -37,7 +37,7 @@
  *********************************************************************/
 
 #include <phantomx_rst/phantomx_interface.h>
-
+#include <signal.h>
 
 namespace phantomx
 {
@@ -56,6 +56,9 @@ PhantomXControl::~PhantomXControl()
   
 void PhantomXControl::initialize()
 {
+  // overwrite signal handler in order to allow cancellation of actions after pressing ctrl-c
+  signal(SIGINT, phantomx::PhantomXControl::phantomXSigHandler);
+    
   // instantiate arm action client
   ROS_INFO("Waiting for arm action server to start.");
   _arm_action = make_unique<actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction>>("/arm_controller/follow_joint_trajectory", true);
@@ -132,10 +135,10 @@ void PhantomXControl::initialize()
   {
     ROS_ERROR("%s",ex.what());
   }
-  Eigen::Affine3d base_T_arm;
-  tf::transformTFToEigen(transform, base_T_arm);
-  _kinematics.setBaseToJoint1Transform(base_T_arm);
-
+  tf::transformTFToEigen(transform, _base_T_j1); // we refere to a class property here in order to store it for further access (since it is constant).
+  _kinematics.setBaseToJoint1Transform(_base_T_j1);
+  _j1_T_base = _base_T_j1.inverse();
+  
   // get transform: first joint to second joint
   try
   {
@@ -423,6 +426,53 @@ bool PhantomXControl::isExceedingJointLimits(const Eigen::Ref<const JointVector>
   return (joint_values.array()<_joint_lower_bounds.array()).any() || (joint_values.array()>_joint_upper_bounds.array()).any();
 }
 
+bool PhantomXControl::checkSelfCollision(const Eigen::Ref<const JointVector>& joint_values)
+{
+  if (!_initialized) 
+      return false; // we can only check after calling initialization, since we need a kinematic model
+                    // but we return no collision, since inside the initialization only setJointsDefault is called
+                    // that is admissable
+  
+  // get endeffector position
+  Eigen::Affine3d  transform = kinematics().computeForwardKinematics(joint_values);
+  // transform into the system of joint 1 since we know that point on the robot
+  transform = _j1_T_base * transform;
+  // the y axis of system1 corresponds to the z-axis of the base system
+  // the z axis of system1 corresponds to the x-axis of the base system
+  // the x axis of system1 corresponds to the y-axis of the base system
+  
+  // get the point in the z-x plane (z-x such that is right-handed)
+  const Eigen::Vector3d& point = transform.translation();
+  
+  // now everything is expressed in j1-system:
+  // front (positive z): z_c + 7cm
+  // back (negative z): z_c - 13cm
+  // left (positive x): x_c + 11cm
+  // right (negative x): x_c - 11cm
+
+  bool inside = point.z() > -0.13 && point.z() < 0.07 && point.x() > -0.11 && point.x() < 0.11; // TODO: param
+  if (inside)
+  {
+      // check y axis (z axis of the base system)
+      // it must be at least 10cm over the joint 1 (hardcoded, TODO: param)
+      if (point.y() < 0.1)
+          return true;
+  }
+  
+  // now test the fourth joint
+  transform = kinematics().computeForwardKinematics(joint_values,3);
+  transform = _j1_T_base * transform;
+  const Eigen::Vector3d& point2 = transform.translation();
+  inside = point2.z() > -0.13 && point2.z() < 0.07 && point2.x() > -0.11 && point2.x() < 0.11;
+  if (inside)
+  {
+      if (point2.y() < 0) // we reduce this number for the fourth joint to zero
+          return true;
+  }
+  
+  return false;
+}
+
 bool PhantomXControl::verifyTrajectory(trajectory_msgs::JointTrajectory& trajectory)
 {
   // Get current joint angles 
@@ -439,7 +489,7 @@ bool PhantomXControl::verifyTrajectory(trajectory_msgs::JointTrajectory& traject
       bool sync_duration_mode = state.time_from_start.sec!=0 || state.time_from_start.nsec!=0;
       if ( (sync_duration_mode && !state.velocities.empty()) || (!sync_duration_mode && state.velocities.empty()) )
       {
-	ROS_ERROR("PhantomXControl::setJointTrajectory(): you must either specify a total duration (time_from_start) or individual velocities. Do not choose both.");
+	ROS_ERROR("PhantomXControl::verifyTrajectory(): you must either specify a total duration (time_from_start) or individual velocities. Do not choose both.");
 	return false;
       }
       
@@ -448,7 +498,7 @@ bool PhantomXControl::verifyTrajectory(trajectory_msgs::JointTrajectory& traject
       // check joint angle limits
       if (isExceedingJointLimits(values))
       {
-	ROS_WARN_STREAM("PhantomXControl::setJointTrajectory(): cannot set new joint values since they exceed joint limits.\ndesired angles: ["
+	ROS_WARN_STREAM("PhantomXControl::verifyTrajectory(): cannot set new joint values since they exceed joint limits.\ndesired angles: ["
 			<< values.transpose() << "]\nlower bounds: [" 
 			<< _joint_lower_bounds.transpose() << "]\nupper bounds: [" << _joint_upper_bounds.transpose() << "]");
 	return false;
@@ -460,7 +510,7 @@ bool PhantomXControl::verifyTrajectory(trajectory_msgs::JointTrajectory& traject
 	state.velocities[i] = fabs(state.velocities[i]); // we consider only absolute velocities
 	if (state.velocities[i] > _joint_max_speeds[i])
 	{
-	  ROS_WARN("PhantomXControl::setJoints(): Velocity of joint %d exceeds limits. Bounding...", i);
+	  ROS_WARN("PhantomXControl::verifyTrajectory(): Velocity of joint %d exceeds limits. Bounding...", i);
 	  state.velocities[i] = _joint_max_speeds.coeffRef(i);
 	}
       }
@@ -472,8 +522,15 @@ bool PhantomXControl::verifyTrajectory(trajectory_msgs::JointTrajectory& traject
 	  // check and bound velocity
 	  // get maximum allowed duration (w.r.t. min of all max joint speeds)
 	  double duration_bounded = lower_bound(max_diff / getSlowestMaxSpeed(), state.time_from_start.toSec()); // phi = omega*t -> t = phi/omega
-	  ROS_WARN_COND(duration_bounded>state.time_from_start.toSec(), "PhantomXControl::setJoints(): desired speed is too high in order to drive all joints at this speed. Bounding...");
+	  ROS_WARN_COND(duration_bounded>state.time_from_start.toSec(), "PhantomXControl::verifyTrajectory(): desired speed is too high in order to drive all joints at this speed. Bounding...");
 	  state.time_from_start = ros::Duration(duration_bounded);
+      }
+      
+      // check self-collision
+      if (checkSelfCollision(values))
+      {
+          ROS_ERROR("PhantomXControl::verifyTrajectory(): Self-collision detected.");
+          return false;
       }
       
       // Store pos vector for the subsequent iteration (using C++ placement new operator)
