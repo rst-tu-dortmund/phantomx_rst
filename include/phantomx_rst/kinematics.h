@@ -141,6 +141,7 @@ public:
    * The rotational component (lower 3x4 submatrix) expresses the rotational component of the end effector velocity
    * in terms of angular velocity (angle and axis representation). 
    * @remarks This is not the analytic robot jacobian!
+   * @sa computePoseError
    * @param joint_values Joint configuration q=[q1,q2,q3,q4] in which the jacobian should be computed
    * @param[out] jacobian The 6x4 jacobian will be written into this matrix.
    */
@@ -164,6 +165,17 @@ public:
    * @return \c true if a solution was found, \c false otherwise.
    */  
   bool computeInverseKinematics(const Eigen::Affine3d& desired_pose, Eigen::Ref<JointVector> joint_values) const;
+  
+  /**
+   * @brief Compute the joint angles that correspond to a given 4D pose w.r.t. to the robot base frame
+   * @details This methods overloads a more generic function and limits the pose to the position part and a pitch angle.
+   * @param desired_xyz Desired [x,y,z] coordinates in the base frame
+   * @param desired_pitch Desired pitch angle in the base frame (<e> endeffector points upwards for 0 [rad] and downwards for +-pi [rad] </e>)
+   * @param[out] joint_values the corresponding joint values. Initit them with the current joint values, in order to choose
+   *                          either the elbow up or elbow down solution depending on the current angular distance.
+   * @return \c true if a solution was found, \c false otherwise.
+   */
+  bool computeInverseKinematics(const Eigen::Ref<const Eigen::Vector3d>& desired_xyz, double desired_pitch, Eigen::Ref<JointVector> joint_values) const;
 
 protected:
   

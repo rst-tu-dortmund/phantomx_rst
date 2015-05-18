@@ -38,6 +38,7 @@
 
 #include <phantomx_rst/phantomx_interface.h>
 #include <signal.h>
+#include <boost/graph/graph_concepts.hpp>
 
 namespace phantomx
 {
@@ -570,6 +571,71 @@ void PhantomXControl::getEndeffectorState(tf::StampedTransform& base_T_gripper)
     }
 }
 
+void PhantomXControl::setEndeffectorPose(const Eigen::Affine3d& desired_pose, const ros::Duration& duration, bool relative, bool blocking)
+{
+    JointVector joint_angles;
+    getJointAngles(joint_angles); // use current joint angles as initialization
+    bool success = false;
+    if (relative)
+    {
+      Eigen::Affine3d current_tcp = kinematics().computeForwardKinematics(joint_angles);
+      success = kinematics().computeInverseKinematics( current_tcp * desired_pose , joint_angles);
+    }
+    else
+      success = kinematics().computeInverseKinematics(desired_pose, joint_angles);
+    if (success)
+      setJoints(joint_angles, duration, false, blocking);
+}
+
+void PhantomXControl::setEndeffectorPose(const Eigen::Affine3d& desired_pose, double speed, bool relative, bool blocking)
+{
+    JointVector joint_angles;
+    getJointAngles(joint_angles); // use current joint angles as initialization
+    bool success = false;
+    if (relative)
+    {
+      Eigen::Affine3d current_tcp = kinematics().computeForwardKinematics(joint_angles);
+      success = kinematics().computeInverseKinematics( current_tcp * desired_pose , joint_angles);
+    }
+    else
+      success = kinematics().computeInverseKinematics(desired_pose, joint_angles);
+    if (success)
+      setJoints(joint_angles, speed, false, blocking);
+}
+
+bool PhantomXControl::setEndeffectorPose(const Eigen::Ref<const Eigen::Vector3d>& desired_xyz, double desired_pitch, const ros::Duration& duration, bool relative, bool blocking)
+{
+    JointVector joint_angles;
+    getJointAngles(joint_angles); // use current joint angles as initialization
+    bool success = false;
+    if (relative)
+    {
+      Eigen::Affine3d current_tcp = kinematics().computeForwardKinematics(joint_angles);
+      success = kinematics().computeInverseKinematics(current_tcp * createPoseFromPosAndPitch(desired_xyz, desired_pitch), joint_angles);
+    }
+    else
+      success = kinematics().computeInverseKinematics(desired_xyz, desired_pitch, joint_angles);
+    if (success)
+      setJoints(joint_angles, duration, false, blocking);
+}
+
+bool PhantomXControl::setEndeffectorPose(const Eigen::Ref<const Eigen::Vector3d>& desired_xyz, double desired_pitch, double speed, bool relative, bool blocking)
+{
+    JointVector joint_angles;
+    getJointAngles(joint_angles); // use current joint angles as initialization
+    bool success = false;
+    if (relative)
+    {
+      Eigen::Affine3d current_tcp = kinematics().computeForwardKinematics(joint_angles);
+      success = kinematics().computeInverseKinematics(current_tcp * createPoseFromPosAndPitch(desired_xyz, desired_pitch), joint_angles);
+    }
+    else
+      success = kinematics().computeInverseKinematics(desired_xyz, desired_pitch, joint_angles);
+    if (success)
+      setJoints(joint_angles, speed, false, blocking);
+}
+
+
 
 void PhantomXControl::getJacobian(RobotJacobian& jacobian)
 {
@@ -651,6 +717,7 @@ bool PhantomXControl::testKinematicModel(const Eigen::Ref<const JointVector>& jo
   ROS_INFO("Test finished.");
   return retval;  
 }
+
   
   
 } // end namespace phantomx

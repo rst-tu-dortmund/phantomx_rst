@@ -198,9 +198,11 @@ namespace phantomx
    * @param rpy vector containing [roll,pitch,yaw] angles
    * @return 3x3 rotation matrix
    */  
-  inline Eigen::Matrix3d rpyToRotMat(const Eigen::Ref<const RpyVector>& rpy)
+  inline Eigen::Matrix3d convertRpyToRotMat(const Eigen::Ref<const RpyVector>& rpy)
   {    
-    return (Eigen::AngleAxisd(rpy.coeffRef(2), Eigen::Vector3d::UnitZ()) * Eigen::AngleAxisd(rpy.coeffRef(1), Eigen::Vector3d::UnitY()) * Eigen::AngleAxisd(rpy.coeffRef(0), Eigen::Vector3d::UnitX())).toRotationMatrix();
+    return (Eigen::AngleAxisd(rpy.coeffRef(2), Eigen::Vector3d::UnitZ())
+	  * Eigen::AngleAxisd(rpy.coeffRef(1), Eigen::Vector3d::UnitY()) 
+	  * Eigen::AngleAxisd(rpy.coeffRef(0), Eigen::Vector3d::UnitX())).toRotationMatrix();
   }
   
   
@@ -209,7 +211,7 @@ namespace phantomx
    * @param rot_mat 3x3 rotation matrix
    * @return vector contining [roll,pitch,yaw] angles
    */
-  inline RpyVector rotMatToRpy(const Eigen::Ref<const Eigen::Matrix3d>& rot_mat)
+  inline RpyVector convertRotMatToRpy(const Eigen::Ref<const Eigen::Matrix3d>& rot_mat)
   {    
     // see http://de.wikipedia.org/wiki/Roll-Nick-Gier-Winkel
     RpyVector rpy;
@@ -230,8 +232,78 @@ namespace phantomx
     }
     return rpy;
   }
+  
+  /**
+   * @brief Create a transformation matrix from a position part and a pitch angle
+   * @remarks This function might be helpful for "4d poses" related to the phantomX robot
+   * @param pos desired 3d position [x,y,z]^T
+   * @param pitch desired pitch angle [rad]
+   * @return transformation matrix representing the pose
+   */
+  inline Eigen::Affine3d createPoseFromPosAndPitch(const Eigen::Ref<const Eigen::Vector3d>& pos, double pitch)
+  {
+    Eigen::Affine3d pose;
+    pose.linear() = Eigen::AngleAxisd( pitch, Eigen::Vector3d::UnitY() ).toRotationMatrix();
+    pose.translation() = pos;
+    return pose;
+  }
     
+  /**
+   * @brief Convert a skew symmetric matrix to the underlying vector
+   * @param skew_mat 3x3 skew mat with the following layout:
+   * 			| 0   -vz  vy|
+   *			| vz   0  -vx|
+   *           		|-vy   vx  0 |
+   * @remarks Each component [vx,vy,vz] is determined by the mean value of the related matrix elements
+   * @return 3D vector [vx, vy, vz]^T
+   */
+  inline Eigen::Vector3d convertSkewSymMatToVec(const Eigen::Ref<const Eigen::Matrix3d>& skew_mat)
+  {
+    return 0.5*Eigen::Vector3d(skew_mat.coeffRef(2,1)-skew_mat.coeffRef(1,2),
+			       skew_mat.coeffRef(0,2)-skew_mat.coeffRef(2,0),
+			       skew_mat.coeffRef(1,0)-skew_mat.coeffRef(0,1));
+  }
     
+  /**
+   * @brief Compute the orientation error / differential motion between two 3d rotation matrices.
+   * @details The function computes an approximation of the differential motion from \c rot1 to \c rot2
+   * @param rot1 3x3 rotation matrix
+   * @param rot2 3x3 rotation matrix
+   * @return differential motion [dRx, dRy, dRz]^T as approximation to the average spatial velocity multiplied by time
+   */  
+  inline Eigen::Vector3d computeOrientationError(const Eigen::Ref<const Eigen::Matrix3d>& rot1, const Eigen::Ref<const Eigen::Matrix3d>& rot2)
+  {
+    return convertSkewSymMatToVec(rot2 * rot1.transpose() - Eigen::Matrix3d::Identity());
+  }
+    
+  /**
+   * @brief Compute the pose error / differential motion between two transformation matrices.
+   * @details The function computes an approximation of the differential motion from \c pose1 to \c pose2
+   * @param pose1 transformation matrix representing the first pose
+   * @param pose2 transformation matrix representing the second pose
+   * @return differential motion [dx, dy, dz, dRx, dRy, dRz]^T as approximation to the average spatial velocity multiplied by time
+   */     
+  inline Pose6D computePoseError(const Eigen::Affine3d& pose1, const Eigen::Affine3d& pose2)
+  {
+    Pose6D diff;
+    diff.head(3) = pose2.translation()-pose1.translation();
+    diff.tail(3) = computeOrientationError(pose1.linear(), pose2.linear());
+    return diff;
+  }
+  
+  /**
+   * @brief Compute the relative transformation between two poses
+   * @param from_pose first transformation
+   * @param to_pose second transformation
+   * @return relative transformation between \c from_pose and \c to_pose
+   */
+  inline Eigen::Affine3d computeRelativeTransform(const Eigen::Affine3d& from_pose, const Eigen::Affine3d& to_pose)
+  {
+    Eigen::Affine3d rel;
+    rel.linear() = ( Eigen::Quaterniond( from_pose.linear() ) * Eigen::Quaterniond( to_pose.linear() ).conjugate() ).toRotationMatrix(); // conj = inv for unit-quaternions
+    rel.translation() = to_pose.translation() - from_pose.translation();
+    return rel;
+  }
   
   /**
     * @brief Constructs an object of type T and wraps it in a std::unique_ptr. 

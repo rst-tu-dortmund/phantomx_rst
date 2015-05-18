@@ -51,24 +51,13 @@ int main( int argc, char** argv )
   phantomx::PhantomXControl robot;
   robot.initialize();
   
+  
   phantomx::JointVector q;
-//   q << -1.6,M_PI/2,0,0;
-  q << 0,M_PI/2,M_PI/2,-M_PI/2;
-//   q << -1,M_PI/2,0,-M_PI/2;
-//   q << -1,-M_PI/3,M_PI/3,M_PI/2;
-//   q << 0,M_PI/3,M_PI/2,-M_PI/2;
-  robot.setJoints(q,1.0);
-  Eigen::Affine3d tcp = robot.kinematics().computeForwardKinematics(q);
- 
+  q.setZero();
+  robot.setEndeffectorPose(Eigen::Vector3d(0,0.15,0.0), M_PI, 0.5);
   
-  // now test inverse
-  phantomx::JointVector qi;
-  qi.setZero();
-  robot.kinematics().computeInverseKinematics(tcp, qi);
+  robot.setEndeffectorPoseInc(0,0,-0.05, 0.1);
   
-  robot.setJoints(qi,0.2);
-  ROS_INFO_STREAM("qi: [" << qi.transpose() << "]");
-
   
   /*
   actionlib::SimpleActionClient<control_msgs::GripperCommandAction> gripper_ac("/gripper_controller/gripper_action", true);

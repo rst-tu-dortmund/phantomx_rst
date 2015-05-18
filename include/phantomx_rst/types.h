@@ -53,6 +53,9 @@ using JointVector = Eigen::Matrix<double,4,1>;
 //! Typedef for a roll-pitch-yaw vector [roll,pitch,yaw]
 using RpyVector = Eigen::Vector3d;
 
+//! Typedef for a 6D posev vector
+using Pose6D = Eigen::Matrix<double,6,1>;
+
 //! Typedef for the robot jacobian 
 using RobotJacobian = Eigen::Matrix<double,6,4>;
 

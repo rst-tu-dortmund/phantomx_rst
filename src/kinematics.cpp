@@ -129,7 +129,7 @@ bool KinematicModel::computeInverseKinematics(const Eigen::Affine3d& desired_pos
 {
   //TODO
   // VALIDATE POSE (MAX DISTANCE)
-
+  
   // Geometric approach:
   // Start with the angle around z (in x-y plane, since we have only a single joint for that DOF).
   // Transform the desired pose from the base frame into the frame of the first joint
@@ -241,13 +241,10 @@ bool KinematicModel::computeIk3LinkPlanar(const Eigen::Affine3d& j2_T_pose, Eige
   double a3 = fabs(_j4_T_gripper.translation().z());
   
   // now transform the point (0,0,-a3) w.r.t. the gripper system to the j2 system
-  Eigen::Vector3d w = j2_T_pose * Eigen::Vector3d(0,0,-a3); // we can ignore the y compontent since we operate planar only from now on
-
+  // we can ignore the y compontent since we operate planar only from now on
+  Eigen::Vector3d w = j2_T_pose * Eigen::Vector3d(0,0,-a3);
   double w_sq_length_2d = w.z()*w.z() + w.x()*w.x();
   
-//   ROS_INFO_STREAM("a1=" << a1 << " a2=" << a2 << " a3=" << a3);
-//   ROS_INFO_STREAM("\nw: " << w.transpose() << " w_length: " << sqrt(w_sq_length_2d) << "\nphi: " << phi);
-
   double c2 = ( w_sq_length_2d - a1*a1 - a2*a2 ) / (2*a1*a2);
   ROS_ASSERT_MSG(c2!=0, " TODO: c2==0");
   
@@ -327,6 +324,12 @@ bool KinematicModel::computeIk3LinkPlanarElbowUpAndDown(const Eigen::Affine3d& j
     return true;
   }
   return false;
+}
+
+
+bool KinematicModel::computeInverseKinematics(const Eigen::Ref<const Eigen::Vector3d>& desired_xyz, double desired_pitch, Eigen::Ref<JointVector> joint_values) const
+{
+  return computeInverseKinematics(createPoseFromPosAndPitch(desired_xyz, desired_pitch), joint_values);
 }
   
   

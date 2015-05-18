@@ -304,6 +304,77 @@ public:
    */
   void getEndeffectorState(tf::StampedTransform& base_T_gripper);
   
+  
+  /**
+   * @brief Set the endeffector/gripper to a given pose w.r.t. to the robot base frame
+   * 
+   * Since the robot has only 4-DOF, all 6D poses cannot be represtend by a set of joint angles.
+   * The underlying inverse kinematics tries to set the translation and the pitch angle of the desired pose.
+   * Since we have only one degree of freedom to set a yaw angle, yaw-orientation of the gripper should 
+   * coincide with the distance vector to the gripper. Otherwise a warning is displayed. The yaw angle is interesting
+   * in case of the arm singularity in which infinite solutions appear for the first joint value (for the position-IK).
+   * The implementation accounts for joint limits.
+   * If no solution within the joint limits is found, the algorihm tries to set q1=q1+pi and solves the IK again
+   * resulting in a similar gripper position but with switched sides (of the gripper itself).
+   * @param desired_pose Desired 6D poses but with some limitations mentioned above.
+   * @param duration duration for the transition to the new joint state.
+   * @param relative if \c true, new joint states are relative to the previous one, otherwise absolute
+   * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
+   */ 
+  void setEndeffectorPose(const Eigen::Affine3d& desired_pose, const ros::Duration& duration=ros::Duration(5), bool relative=false, bool blocking=true);
+  
+  /**
+   * @brief Set the endeffector/gripper to a given pose w.r.t. to the robot base frame
+   * @details Overload: see setEndeffectorPose(const Eigen::Affine3d& desired_pose, const ros::Duration& duration, bool relative, bool blocking)
+   * @param desired_pose Desired 6D poses but with some limitations mentioned above.
+   * @param speed speed for the transition w.r.t. the joint with the highest deviation from the final state.
+   * @param relative if \c true, new joint states are relative to the previous one, otherwise absolute
+   * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
+   */ 
+  void setEndeffectorPose(const Eigen::Affine3d& desired_pose, double speed, bool relative=false, bool blocking=true);
+  
+  /**
+   * @brief Compute the joint angles that correspond to a given 4D pose w.r.t. to the robot base frame
+   * @details This methods overloads a more generic function and limits the pose to the position part and a pitch angle.
+   * @param desired_xyz Desired [x,y,z] coordinates in the base frame
+   * @param desired_pitch Desired pitch angle in the base frame (<e> endeffector points upwards for 0 [rad] and downwards for +-pi [rad] </e>)
+   * @param duration duration for the transition to the new joint state.
+   * @param relative if \c true, new joint states are relative to the previous one, otherwise absolute
+   * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
+   * @return \c true if a solution was found, \c false otherwise.
+   */
+  bool setEndeffectorPose(const Eigen::Ref<const Eigen::Vector3d>& desired_xyz, double desired_pitch, const ros::Duration& duration=ros::Duration(5), bool relative=false, bool blocking=true);
+  
+  /**
+   * @brief Compute the joint angles that correspond to a given 4D pose w.r.t. to the robot base frame
+   * @details This methods overloads a more generic function and limits the pose to the position part and a pitch angle.
+   * @param desired_xyz Desired [x,y,z] coordinates in the base frame
+   * @param desired_pitch Desired pitch angle in the base frame (<e> endeffector points upwards for 0 [rad] and downwards for +-pi [rad] </e>)
+   * @param speed speed for the transition w.r.t. the joint with the highest deviation from the final state.
+   * @param relative if \c true, new joint states are relative to the previous one, otherwise absolute
+   * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
+   * @return \c true if a solution was found, \c false otherwise.
+   */
+  bool setEndeffectorPose(const Eigen::Ref<const Eigen::Vector3d>& desired_xyz, double desired_pitch, double speed, bool relative=false, bool blocking=true);
+  
+    /**
+   * @brief Incrementally change the position of the endeffector / gripper (in world coordinates).
+   * @details This function simplifies changing the relative position, that is also possibe with the more generic method 
+   * 	      setEndeffectorPose(const Eigen::Ref< const Eigen::Vector3d >& desired_xyz, double desired_pitch, double speed, bool relative, bool blocking),
+   * 	      by setting relative to true and pitch to 0
+   * @param dx increment of the x coordinate
+   * @param dy increment of the y coordinate
+   * @param dz increment of the z coordinate
+   * @param speed speed for the transition w.r.t. the joint with the highest deviation from the final state.
+   * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
+   * @return \c true if a solution was found, \c false otherwise.
+   */
+  bool setEndeffectorPoseInc(double dx, double dy, double dz, double speed, bool blocking=true)
+  {
+    return setEndeffectorPose(Eigen::Vector3d(dx,dy,dz), 0, speed, true, blocking);
+  }
+  
+  
   /**
    * @brief Compute the geometric jacobian of the endeffector/gripper velocity w.r.t. to the base frame.
    * 
@@ -359,7 +430,7 @@ public:
    * @return \c true if the joint vector does not self-collide, \c false otherwise
    */
   bool checkSelfCollision(const Eigen::Ref<const JointVector>& joint_values);
-  
+    
   /**
    * @brief Stop any running transition.
    */
