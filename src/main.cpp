@@ -54,17 +54,20 @@ int main( int argc, char** argv )
   
   
 
-//   phantomx::JointVector q;
+  phantomx::JointVector q;
+//   q << -1.6,M_PI/2,0,0;
 //   q << 0,M_PI/2,M_PI/2,-M_PI/2;
 //   q << -1,M_PI/2,0,-M_PI/2;
 //   q << -1,-M_PI/3,M_PI/3,M_PI/2;
-//   q << 0,M_PI/3,M_PI/2,M_PI/2;
-//   robot.setJoints(q,1.0);
-//   Eigen::Affine3d tcp = robot.kinematics().computeForwardKinematics(q);
+  q << 0,M_PI/3,M_PI/2,M_PI/2;
+  robot.setJoints(q,1.0);
+  Eigen::Affine3d tcp = robot.kinematics().computeForwardKinematics(q);
  
-  Eigen::Affine3d tcp;
-  tcp.translation() = Eigen::Vector3d(0.1,0.1,0.1);
-  tcp.linear() = phantomx::rpyToRotMat( phantomx::RpyVector(-M_PI/3,0,0) );
+//   Eigen::Affine3d tcp;
+//   tcp.translation() = Eigen::Vector3d(0.1,0.1,0.15);
+//   tcp.linear() = phantomx::rpyToRotMat( phantomx::RpyVector(0,0,0) );
+  
+  ROS_INFO_STREAM(phantomx::rotMatToRpy(tcp.linear()).transpose());
   
   
   // now test inverse
@@ -74,7 +77,37 @@ int main( int argc, char** argv )
   
   robot.setJoints(qi,0.2);
   ROS_INFO_STREAM("qi: [" << qi.transpose() << "]");
- 
+  /*
+  
+  q[0]= -1.0;
+  tcp = robot.kinematics().computeForwardKinematics(q);
+  // now test inverse
+  qi.setZero();
+  robot.kinematics().computeInverseKinematics(tcp, qi);
+  ROS_INFO_STREAM("-1 qi: [" << qi.transpose() << "]");
+  
+  q[0]=0;
+  tcp = robot.kinematics().computeForwardKinematics(q);
+  // now test inverse
+  qi.setZero();
+  robot.kinematics().computeInverseKinematics(tcp, qi);
+  ROS_INFO_STREAM("0 qi: [" << qi.transpose() << "]");
+  
+  q[0]=1;
+  tcp = robot.kinematics().computeForwardKinematics(q);
+  // now test inverse
+  qi.setZero();
+  robot.kinematics().computeInverseKinematics(tcp, qi);
+  ROS_INFO_STREAM("1 qi: [" << qi.transpose() << "]");
+  
+  q[0]=2;
+  tcp = robot.kinematics().computeForwardKinematics(q);
+  // now test inverse
+  qi.setZero();
+  robot.kinematics().computeInverseKinematics(tcp, qi);
+  ROS_INFO_STREAM("2 qi: [" << qi.transpose() << "]");
+  
+  */
   
   /*
   actionlib::SimpleActionClient<control_msgs::GripperCommandAction> gripper_ac("/gripper_controller/gripper_action", true);

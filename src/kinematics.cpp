@@ -38,7 +38,6 @@
 
 #include <phantomx_rst/kinematics.h>
 
-#include <unsupported/Eigen/NonLinearOptimization>
 
 namespace phantomx
 {
@@ -126,7 +125,7 @@ void KinematicModel::computeJacobian(const Eigen::Ref<const JointVector>& joint_
 }  
   
 
-bool KinematicModel::computeInverseKinematics(const Eigen::Affine3d& desired_pose, Eigen::Ref<JointVector> joint_values, bool force_yaw) const
+bool KinematicModel::computeInverseKinematics(const Eigen::Affine3d& desired_pose, Eigen::Ref<JointVector> joint_values) const
 {
   //TODO
   // VALIDATE POSE (MAX DISTANCE)
@@ -135,79 +134,96 @@ bool KinematicModel::computeInverseKinematics(const Eigen::Affine3d& desired_pos
   // Start with the angle around z (in x-y plane, since we have only a single joint for that DOF).
   // Transform the desired pose from the base frame into the frame of the first joint
   Eigen::Affine3d j1_T_pose = _j1_T_base * desired_pose; // _j1_T_base does not include the angle of the first joint by definition, therefore it is q1=0.
-        
-  RpyVector rpy = rotMatToRpy(j1_T_pose.linear());
-  // in this frame, the pitch value corresponds to the desired rotation (since we rotate around y).
-  double q1_cand1 = rpy.coeffRef(1);  
-  
-  // check translation vector as well
-  double q1_cand2 = atan2( j1_T_pose.translation().x(), j1_T_pose.translation().z() ); // because of the coordinate system of j1, x() replaces the old y-axis.
-  double q1_cand3 = normalize_angle_rad(q1_cand2+M_PI);
-  // q1_cand1 should be equal to one of the others, since we have only a single degree of freedom for rotation in the x-y axis
-  
-  if (fabs(q1_cand1-q1_cand2) < 1e-2 || fabs(q1_cand1-q1_cand3)<1e-2)
-  {
-      // First test if we can reach the desired yaw angle
 
-      // we must rotate j1 first by the angle q1 that we have already computed:
-      joint_values.coeffRef(0) = q1_cand1;
-      Eigen::Affine3d j2_T_pose = _j2_T_j1 * Eigen::AngleAxisd( -joint_values.coeffRef(0), Eigen::Vector3d::UnitY() ) * j1_T_pose;
-      bool success = computeIk3LinkPlanarElbowUpAndDown(j2_T_pose, joint_values.bottomRows(3));
-      if (success)
-	return true;
-      else if (!force_yaw)
-      {
-	ROS_WARN_STREAM("No feasible solution found to satisfy the desired yaw angle. Trying to find the IK to the same position but with a different yaw...");	
-	joint_values.coeffRef(0) = normalize_angle_rad(q1_cand1 + M_PI);
-	j2_T_pose = _j2_T_j1 * Eigen::AngleAxisd( -joint_values.coeffRef(0), Eigen::Vector3d::UnitY() ) * j1_T_pose;
-	if (computeIk3LinkPlanarElbowUpAndDown(j2_T_pose, joint_values.bottomRows(3)))
-	  return true;
-      }
-  }
-  else
-  {
-    ROS_WARN_ONCE("InverseKinematics: The specified yaw angle should be equal to the orientation of the direction vector (pi may be added), since the arm has only a single degree of freedom for this motion part (this warning is displayed once)."); // yaw angle in the base coordinate system
-    if (!force_yaw)
-    {
-      ROS_WARN("Considering the translation and roll only, ignoring the yaw-angle.");
-      if (fabs(q1_cand2-q1_cand1) < fabs(q1_cand3-q1_cand1))
-      {
-	// test cand2 first
-	joint_values.coeffRef(0) = q1_cand2;
-	Eigen::Affine3d j2_T_pose = _j2_T_j1 * Eigen::AngleAxisd( -joint_values.coeffRef(0), Eigen::Vector3d::UnitY() ) * j1_T_pose;
-	bool success = computeIk3LinkPlanarElbowUpAndDown(j2_T_pose, joint_values.bottomRows(3));
-	if (success)
-	  return true;
-	else
-	{	
-	  joint_values.coeffRef(0) = q1_cand3;
-	  j2_T_pose = _j2_T_j1 * Eigen::AngleAxisd( -joint_values.coeffRef(0), Eigen::Vector3d::UnitY() ) * j1_T_pose;
-	  if (computeIk3LinkPlanarElbowUpAndDown(j2_T_pose, joint_values.bottomRows(3)))
-	    return true;
-	}
-      }
-      else
-      {
-	// test cand3 first
-	joint_values.coeffRef(0) = q1_cand3;
-	Eigen::Affine3d j2_T_pose = _j2_T_j1 * Eigen::AngleAxisd( -joint_values.coeffRef(0), Eigen::Vector3d::UnitY() ) * j1_T_pose;
-	bool success = computeIk3LinkPlanarElbowUpAndDown(j2_T_pose, joint_values.bottomRows(3));
-	if (success)
-	  return true;
-	else
-	{	
-	  joint_values.coeffRef(0) = q1_cand2;
-	  j2_T_pose = _j2_T_j1 * Eigen::AngleAxisd( -joint_values.coeffRef(0), Eigen::Vector3d::UnitY() ) * j1_T_pose;
-	  if (computeIk3LinkPlanarElbowUpAndDown(j2_T_pose, joint_values.bottomRows(3)))
-	    return true;
-	}
-      }
-      
-    }
-  }
+  // check both possibilities for joint 1: q1 and q1+pi
+  double q1_cand1 = atan2( j1_T_pose.translation().x(), j1_T_pose.translation().z() ); // because of the coordinate system of j1, x() replaces the old y-axis.
+  double q1_cand2 = normalize_angle_rad(q1_cand1+M_PI);
+    
+  JointVector q_cand1 = joint_values;
+  JointVector q_cand2 = joint_values;
   
+  // calculate cand1:
+  
+  // we must rotate j1 first by the angle q1 that we have computed already:
+  q_cand1.coeffRef(0) = q1_cand1;
+  Eigen::Affine3d j2_T_pose = _j2_T_j1 * Eigen::AngleAxisd( -q_cand1.coeffRef(0), Eigen::Vector3d::UnitY() ) * j1_T_pose;
+  bool success_cand1 = isInsideInterval(_joint_lower_bounds.coeffRef(0),q_cand1.coeffRef(0),_joint_upper_bounds.coeffRef(0));
+  success_cand1 = success_cand1 && computeIk3LinkPlanarElbowUpAndDown(j2_T_pose, q_cand1.bottomRows(3));
+  
+  // calculate cand2:
+  q_cand2.coeffRef(0) = q1_cand2;
+  j2_T_pose = _j2_T_j1 * Eigen::AngleAxisd( -q_cand2.coeffRef(0), Eigen::Vector3d::UnitY() ) * j1_T_pose;
+  bool success_cand2 = isInsideInterval(_joint_lower_bounds.coeffRef(0),q_cand2.coeffRef(0),_joint_upper_bounds.coeffRef(0));
+  success_cand2 = success_cand2 && computeIk3LinkPlanarElbowUpAndDown(j2_T_pose, q_cand2.bottomRows(3)); 
+  
+  if (success_cand1 && success_cand2)
+  {
+      // check forwards kinematics
+      Eigen::Affine3d fwd1 = computeForwardKinematics(q_cand1);
+      Eigen::Affine3d fwd2 = computeForwardKinematics(q_cand2);
+      // translational part should be identical
+//       if (!fwd1.translation().isApprox( fwd2.translation(), 2e-2 ))
+//       {
+//         ROS_ERROR_STREAM("t1: [" << fwd1.translation().transpose() << "] t2: [" << fwd2.translation().transpose() << "]");
+//         ROS_ERROR_STREAM("This should not appear: You may should look at the code.");
+//       }
+      Eigen::Quaterniond quat_desired(desired_pose.rotation());
+      Eigen::Quaterniond quat_cand1(fwd1.rotation());
+      Eigen::Quaterniond quat_cand2(fwd2.rotation());
+      // see http://math.stackexchange.com/questions/90081/quaternion-distance
+      double angle1 =  1 - pow(quat_desired.dot(quat_cand1),2);  //normalize_angle_rad(acos(quat_cand1.angularDistance(quat_desired)));
+      double angle2 = 1 - pow(quat_desired.dot(quat_cand2),2); //normalize_angle_rad(acos(quat_cand2.angularDistance(quat_desired)));
+      ROS_INFO_STREAM("angle1: " << angle1 << " angle: " << angle2);
+      if (fabs(angle1)<fabs(angle2))
+          joint_values = q_cand1;
+      else
+          joint_values = q_cand2;
+      
+      // check forwards kinematics
+      Eigen::Affine3d fwd = computeForwardKinematics(joint_values);
+      // verify translation
+      if (!fwd.translation().isApprox( desired_pose.translation(), 3e-2 ))
+      {
+        ROS_WARN_STREAM("Inverse Kinematics: solution found, but mismatch in the translational part found.");
+      }
+      return true;
+  }
+  else if (success_cand1)
+  {
+      // check forwards kinematics
+      Eigen::Affine3d fwd = computeForwardKinematics(q_cand1);
+      // verify translation
+      if (!fwd.translation().isApprox( desired_pose.translation(), 3e-2 ))
+      {
+        ROS_WARN_STREAM("Inverse Kinematics: solution found, but mismatch in the translational part found.");
+      }
+      if (!Eigen::Quaterniond(fwd.rotation()).isApprox(Eigen::Quaterniond(desired_pose.rotation()), 1e-2))
+      {
+        ROS_WARN_STREAM("Inverse Kinematics: solution found, but mismatch in the orientation part found.");
+      }
+      joint_values = q_cand1;
+      return true;
+  }
+  else if (success_cand2)
+  {
+      // check forwards kinematics
+      Eigen::Affine3d fwd = computeForwardKinematics(q_cand2);
+      // verify translation
+      if (!fwd.translation().isApprox( desired_pose.translation(), 3e-2 ))
+      {
+        ROS_WARN_STREAM("Inverse Kinematics: solution found, but mismatch in the translational part found.");
+      }
+      if (!Eigen::Quaterniond(fwd.rotation()).isApprox(Eigen::Quaterniond(desired_pose.rotation()), 1e-2))
+      {
+        ROS_WARN_STREAM("Inverse Kinematics: solution found, but mismatch in the orientation part found.");
+      }
+      joint_values = q_cand2;
+      return true;
+  }
+   
   ROS_ERROR_STREAM("InverseKinematics: No solution found");
   return false;
+ 
 }
 
 bool KinematicModel::computeIk3LinkPlanar(const Eigen::Affine3d& j2_T_pose, Eigen::Ref<Eigen::Vector3d> values, bool elbow_up) const
@@ -269,9 +285,9 @@ bool KinematicModel::computeIk3LinkPlanar(const Eigen::Affine3d& j2_T_pose, Eige
  values.coeffRef(0) = normalize_angle_rad(M_PI/2 - std::atan2(w.z(),w.x()) + std::atan2(a2*sin(-values.coeffRef(1)),aux));  // We must add pi/2, since our default position for q2=0 is upwards!! 
 
     // determine desired final orientation of the gripper in the joint 2 frame
-//   double phi = -1*std::atan2(-j2_T_pose.linear().coeffRef(0,2), j2_T_pose.linear().coeffRef(2,2));
-  RpyVector rpy = rotMatToRpy(j2_T_pose.linear());
-  double phi = rpy.coeffRef(0);  
+  double phi = -1*std::atan2(-j2_T_pose.linear().coeffRef(0,2), j2_T_pose.linear().coeffRef(2,2));
+//   RpyVector rpy = rotMatToRpy(j2_T_pose.linear());
+//   double phi = rpy.coeffRef(1); // pitch value
   
   // it is phi = q2+q3+q4
   values.coeffRef(2) = normalize_angle_rad(phi - values.coeffRef(1) - values.coeffRef(0));

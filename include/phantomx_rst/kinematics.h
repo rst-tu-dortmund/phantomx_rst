@@ -70,7 +70,7 @@ namespace phantomx
  *      l3 = Link('revolute','d',0,'a',0.1015,'alpha',0);
  *      l4 = Link('revolute','d',0,'a',0.0880,'alpha',0);
  *      arm = SerialLink([l1,l2,l3,l4]);
- *      arm.tool = troty(-pi/2) * trotx(pi);
+ *      arm.tool = troty(-pi/2) * trotx(pi) * trotz(-pi/2);
  * @endcode
  * But only the relation between the arm_base_link and gripper frame are identically. The individual joint 
  * coordinate systems differ from each other (since the robotics toolbox relies on DH paramters)
@@ -146,11 +146,28 @@ public:
    */
   void computeJacobian(const Eigen::Ref<const JointVector>& joint_values, RobotJacobian& jacobian) const;
   
-  bool computeInverseKinematics(const Eigen::Affine3d& desired_pose, Eigen::Ref<JointVector> joint_values, bool force_yaw = false) const;
+  /**
+   * @brief Compute the joint angles that correspond to a given pose w.r.t. to the robot base frame
+   * 
+   * Since the robot has only 4-DOF, all 6D poses cannot be represtend by a set of joint angles.
+   * The underlying inverse kinematics tries to set the translation and the pitch angle of the desired pose.
+   * Since we have only one degree of freedom to set a yaw angle, yaw-orientation of the gripper should 
+   * coincide with the distance vector to the gripper. Otherwise a warning is displayed. The yaw angle is interesting
+   * in case of the arm singularity in which infinite solutions appear for the first joint value (for the position-IK).
+   * The implementation accounts for joint limits.
+   * If no solution within the joint limits is found, the algorihm tries to set q1=q1+pi and solves the IK again
+   * resulting in a similar gripper position but with switched sides (of the gripper itself).
+   * @param desired_pose Desired 6D poses but with some limitations mentioned above.
+   * @param[out] joint_values the corresponding joint values. Initit them with the current joint values, in order to choose
+   *                          either the elbow up or elbow down solution depending on the current angular distance.
+   */  
+  bool computeInverseKinematics(const Eigen::Affine3d& desired_pose, Eigen::Ref<JointVector> joint_values) const;
 
 protected:
   
+  //! Helper method to compute the inverse kinematics of joint 2-4, interpreted as 3-link-planar arm.
   bool computeIk3LinkPlanar(const Eigen::Affine3d& j2_T_pose, Eigen::Ref<Eigen::Vector3d> values, bool elbow_up) const;
+  //! Helper method to compute both the elbow up and elbow down pose of the 3-link-planar part of the arm and choosing the closer solution.
   bool computeIk3LinkPlanarElbowUpAndDown(const Eigen::Affine3d& j2_T_pose, Eigen::Ref<Eigen::Vector3d> values) const;
   
 private:
