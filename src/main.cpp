@@ -56,7 +56,7 @@ int main( int argc, char** argv )
   q.setZero();
   robot.setEndeffectorPose(Eigen::Vector3d(0,0.15,0.0), M_PI, 0.5);
   
-  robot.setEndeffectorPoseInc(0,0,-0.05, 0.1);
+  robot.setEndeffectorPoseInc(0,0,0.05, 0.1);
   
   
   /*

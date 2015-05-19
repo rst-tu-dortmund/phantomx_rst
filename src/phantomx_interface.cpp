@@ -579,7 +579,7 @@ void PhantomXControl::setEndeffectorPose(const Eigen::Affine3d& desired_pose, co
     if (relative)
     {
       Eigen::Affine3d current_tcp = kinematics().computeForwardKinematics(joint_angles);
-      success = kinematics().computeInverseKinematics( current_tcp * desired_pose , joint_angles);
+      success = kinematics().computeInverseKinematics( desired_pose * current_tcp , joint_angles);
     }
     else
       success = kinematics().computeInverseKinematics(desired_pose, joint_angles);
@@ -595,7 +595,7 @@ void PhantomXControl::setEndeffectorPose(const Eigen::Affine3d& desired_pose, do
     if (relative)
     {
       Eigen::Affine3d current_tcp = kinematics().computeForwardKinematics(joint_angles);
-      success = kinematics().computeInverseKinematics( current_tcp * desired_pose , joint_angles);
+      success = kinematics().computeInverseKinematics( desired_pose * current_tcp , joint_angles);
     }
     else
       success = kinematics().computeInverseKinematics(desired_pose, joint_angles);
@@ -611,7 +611,7 @@ bool PhantomXControl::setEndeffectorPose(const Eigen::Ref<const Eigen::Vector3d>
     if (relative)
     {
       Eigen::Affine3d current_tcp = kinematics().computeForwardKinematics(joint_angles);
-      success = kinematics().computeInverseKinematics(current_tcp * createPoseFromPosAndPitch(desired_xyz, desired_pitch), joint_angles);
+      success = kinematics().computeInverseKinematics(createPoseFromPosAndPitch(desired_xyz, desired_pitch) * current_tcp, joint_angles);
     }
     else
       success = kinematics().computeInverseKinematics(desired_xyz, desired_pitch, joint_angles);
@@ -627,7 +627,7 @@ bool PhantomXControl::setEndeffectorPose(const Eigen::Ref<const Eigen::Vector3d>
     if (relative)
     {
       Eigen::Affine3d current_tcp = kinematics().computeForwardKinematics(joint_angles);
-      success = kinematics().computeInverseKinematics(current_tcp * createPoseFromPosAndPitch(desired_xyz, desired_pitch), joint_angles);
+      success = kinematics().computeInverseKinematics(createPoseFromPosAndPitch(desired_xyz, desired_pitch) * current_tcp, joint_angles);
     }
     else
       success = kinematics().computeInverseKinematics(desired_xyz, desired_pitch, joint_angles);
