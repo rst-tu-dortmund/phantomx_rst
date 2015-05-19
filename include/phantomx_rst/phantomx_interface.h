@@ -447,6 +447,8 @@ public:
    * Additionally, the fourth joint is tested.
    * @todo Improve collision checking.
    * @todo Parameters of the rectangle are hardcoded now. Declare them as config paramteres.
+   * @todo We have some problems with velocity control here, that need to be fixed.
+   *	   But for now we bypass this problem by deactivating the collision check in case of velocity control.
    * @param joint_values vector of joint values q=[q1,q2,q3,q4]^T
    * @return \c true if the joint vector does not self-collide, \c false otherwise
    */

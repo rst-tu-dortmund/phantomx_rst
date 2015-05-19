@@ -3,5 +3,9 @@ model:  parallel
 center: 0
 scale: 1
 joint: gripper_joint
-pad_width: 0.002
+#pad_width: 0.002
+#min_opening: 0.002
+#max_opening: 0.031
+#neutral: 0.015
+#tighten: .001
 

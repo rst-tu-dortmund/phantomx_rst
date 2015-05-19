@@ -44,7 +44,7 @@
 // =============== Main function =================
 int main( int argc, char** argv )
 {
-  ros::init(argc, argv, "test_optim_node");
+  ros::init(argc, argv, "phantomx");
   ros::NodeHandle n("~");
   
  
@@ -52,10 +52,14 @@ int main( int argc, char** argv )
   robot.initialize();
   
   
+   
+  
   robot.setGripperJoint(100);
   
 //   phantomx::JointVector q;
 //   q.setZero();
+//   q[0] = 0.5;
+//   robot.setJoints(q);
 //   robot.setEndeffectorPose(Eigen::Vector3d(0,0.15,0.0), M_PI, 0.5);
   
 //   robot.setEndeffectorPoseInc(0,0,0.05, 0.1);

@@ -457,6 +457,19 @@ bool PhantomXControl::checkSelfCollision(const Eigen::Ref<const JointVector>& jo
       return false; // we can only check after calling initialization, since we need a kinematic model
                     // but we return no collision, since inside the initialization only setJointsDefault is called
                     // that is admissable
+             
+  // We have some problems with velocity control here, that need to be fixed.
+  // But for now we bypass this problem by deactivating the collision check in case of velocity control;
+  // Velocity control is activated if all target joint values correspond to the bounds
+  // WORKAROUND:
+  int count_equal = 0;
+  for (int i=0; i<joint_values.rows(); ++i)
+  {
+    if ( is_approx(joint_values.coeffRef(i), _joint_lower_bounds.coeffRef(i)) || is_approx(joint_values.coeffRef(i), _joint_upper_bounds.coeffRef(i)) || joint_values.coeffRef(i)==0)
+      count_equal = count_equal +1;
+  }
+  if (count_equal == joint_values.rows())
+    return false; // velocity control detected
   
   // get endeffector position
   Eigen::Affine3d  transform = kinematics().computeForwardKinematics(joint_values);

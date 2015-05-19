@@ -110,6 +110,17 @@ namespace phantomx
     return fmod(angle, 360.);
   }
   
+  /** 
+   * @brief Check if two doubles are similar
+   * @param a first value
+   * @param b second value
+   * @return \c true if <c> fabs(a-b)< threshold </c>, otherwise \c false
+   */
+  inline bool is_approx(double a, double b, double threshold=1e-6)
+  {
+    return fabs(a-b) < threshold;
+  }
+  
   /**
    * @brief Check if x is inside the interval [l, u]
    * @param l lower bound
