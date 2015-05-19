@@ -52,11 +52,13 @@ int main( int argc, char** argv )
   robot.initialize();
   
   
-  phantomx::JointVector q;
-  q.setZero();
-  robot.setEndeffectorPose(Eigen::Vector3d(0,0.15,0.0), M_PI, 0.5);
+  robot.setGripperJoint(100);
   
-  robot.setEndeffectorPoseInc(0,0,0.05, 0.1);
+//   phantomx::JointVector q;
+//   q.setZero();
+//   robot.setEndeffectorPose(Eigen::Vector3d(0,0.15,0.0), M_PI, 0.5);
+  
+//   robot.setEndeffectorPoseInc(0,0,0.05, 0.1);
   
   
   /*

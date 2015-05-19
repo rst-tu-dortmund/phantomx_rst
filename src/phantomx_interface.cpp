@@ -57,6 +57,12 @@ PhantomXControl::~PhantomXControl()
   
 void PhantomXControl::initialize()
 {
+  if (_initialized)
+  {
+      ROS_WARN("PhantomXControl class already initialized. Skipping new initialization...");
+      return;
+  }
+    
   // overwrite signal handler in order to allow cancellation of actions after pressing ctrl-c
   signal(SIGINT, phantomx::PhantomXControl::phantomXSigHandler);
     
@@ -92,9 +98,10 @@ void PhantomXControl::initialize()
   }
    
   // get joint information (angle limits and max speed)
+  std::string arbotix_joints_ns = "/arbotix/joints/"; // TODO config param
   for (int i=0; i<_joint_names_arm.size(); ++i)
   {
-	std::string param_prefix = "/arbotix/joints/" + _joint_names_arm[i]; // TODO config param
+	std::string param_prefix = arbotix_joints_ns + _joint_names_arm[i]; 
         std::string min_angle_key = param_prefix + "/min_angle";
 	std::string max_angle_key = param_prefix + "/max_angle";
 	std::string max_speed_key = param_prefix + "/max_speed";
@@ -111,6 +118,23 @@ void PhantomXControl::initialize()
 	_joint_upper_bounds[i] = normalize_angle_rad( deg_to_rad( _joint_upper_bounds[i] ) ); // normalize to (-pi, pi]
 	_joint_max_speeds[i] = deg_to_rad( _joint_max_speeds[i] );
   }     
+  
+  
+  // setup gripper
+  _gripper_joint_name = "gripper_joint";
+  if (!n.hasParam(arbotix_joints_ns + _gripper_joint_name))
+    ROS_ERROR("Could not find the specified gripper joint name: %s.", _gripper_joint_name.c_str());
+  n.getParam(arbotix_joints_ns + _gripper_joint_name + "/min_angle", _gripper_lower_bound);
+  n.getParam(arbotix_joints_ns + _gripper_joint_name + "/max_angle", _gripper_upper_bound);
+//   n.param(arbotix_joints_ns + _gripper_joint_name + "/neutral", _gripper_neutral, 0.5*(_gripper_upper_bound+_gripper_lower_bound));
+//   n.getParam(arbotix_joints_ns + _gripper_joint_name + "/max_speed", _gripper_max_speed);
+  // convert angles to radiant
+  _gripper_lower_bound = normalize_angle_rad( deg_to_rad( _gripper_lower_bound ) ); // normalize to (-pi, pi]
+  _gripper_upper_bound = normalize_angle_rad( deg_to_rad( _gripper_upper_bound ) ); // normalize to (-pi, pi]
+//   _gripper_neutral = normalize_angle_rad( deg_to_rad(_gripper_neutral) );
+//   _gripper_max_speed = deg_to_rad( _gripper_max_speed );
+  
+  
   
   // Setup kinematic model
 	
@@ -642,6 +666,18 @@ void PhantomXControl::getJacobian(RobotJacobian& jacobian)
     JointVector joint_angles;
     getJointAngles(joint_angles);
     kinematics().computeJacobian(joint_angles, jacobian);
+}
+
+
+void PhantomXControl::setGripperJoint(int percent_open, bool blocking)
+{
+  control_msgs::GripperCommandGoal goal;
+  goal.command.position = _gripper_lower_bound + 0.01*double(percent_open)*( _gripper_upper_bound-_gripper_lower_bound );
+    
+  if (blocking)
+    _gripper_action->sendGoalAndWait(goal, ros::Duration(5));
+  else
+    _gripper_action->sendGoal(goal);
 }
 
 bool PhantomXControl::testKinematicModel()

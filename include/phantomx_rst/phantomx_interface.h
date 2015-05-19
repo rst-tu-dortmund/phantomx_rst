@@ -408,7 +408,28 @@ public:
   //@}
   
   
-   /** @name Utility methods */
+  /** @name Gripper methods */
+  //@{ 
+  
+  /**
+   * @brief Open or close the gripper.
+   * 
+   * The distance between both gripper fingers is set according to a percentage.
+   * A value of 0 means that the gripper is closed. A value of 100 corresponds to 
+   * the maximum separation (open).
+   * @warning Be careful if you use the gripper to pick things. We have no feedbeck
+   *          if the gripper is already grasping. A too small value could damage the servo.
+   *          Reduce the param \c percent_open only slighly!!!
+   * @param percent_open Desired separation in percent [0..100] (0 = closed)
+   * @param blocking  if \c true, wait until the action is completed or the timeout is exceeded before continuing 
+   */
+  void setGripperJoint(int percent_open, bool blocking = true);
+  
+ 
+  //@}
+  
+  
+  /** @name Utility methods */
   //@{ 
 
   /**
@@ -498,10 +519,15 @@ private:
   JointVector _joint_upper_bounds;
   JointVector _joint_max_speeds;
   
+  double _gripper_lower_bound = 0;
+  double _gripper_upper_bound = 0;
+//   double _gripper_neutral = 0;
+//   double _gripper_max_speed = 0;
+  std::string _gripper_joint_name;
+  
   std::map<std::string, int> _map_joint_to_index;
   
   std::vector<std::string> _joint_names_arm; //!< Store names for all joints of the arm
-//   std::vector<JointDetails> _joint_details; //!< Store information of all joints of the arm (angle limits and max speed)
   
   
   bool _initialized = false;
