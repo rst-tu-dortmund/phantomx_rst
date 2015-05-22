@@ -454,6 +454,16 @@ public:
    */
   bool checkSelfCollision(const Eigen::Ref<const JointVector>& joint_values);
     
+  void createP2PTrajectoryWithIndividualVel(const Eigen::Ref<const JointVector>& start_conf,
+                                                   const Eigen::Ref<const JointVector>& goal_conf,
+                                                   const Eigen::Ref<const JointVector>& speed,
+                                                   trajectory_msgs::JointTrajectory& trajectory);
+  
+  void createP2PTrajectoryWithIndividualVel(const std::vector<double>& start_conf,
+                                                   const std::vector<double>& goal_conf,
+                                                   const std::vector<double>& speed,
+                                                   trajectory_msgs::JointTrajectory& trajectory);
+  
   /**
    * @brief Stop any running transition.
    */

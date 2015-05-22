@@ -103,7 +103,14 @@ endif()
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES phantomx_rst
-  CATKIN_DEPENDS actionlib arbotix control_msgs tf tf_conversions trajectory_msgs sensor_msgs cmake_modules
+  CATKIN_DEPENDS
+  	actionlib 
+	control_msgs
+	tf
+	tf_conversions
+	trajectory_msgs
+	sensor_msgs
+	cmake_modules
   DEPENDS system_lib Eigen3
 )
 

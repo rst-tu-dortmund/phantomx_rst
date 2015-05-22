@@ -693,6 +693,78 @@ void PhantomXControl::setGripperJoint(int percent_open, bool blocking)
     _gripper_action->sendGoal(goal);
 }
 
+
+void PhantomXControl::createP2PTrajectoryWithIndividualVel(const std::vector<double>& start_conf,
+                                                           const std::vector<double>& goal_conf,
+                                                           const std::vector<double>& speed,
+                                                           trajectory_msgs::JointTrajectory& trajectory)
+{
+    Eigen::Map<const JointVector> start_map(start_conf.data());
+    Eigen::Map<const JointVector> goal_map(goal_conf.data());
+    Eigen::Map<const JointVector> speed_map(speed.data());
+    createP2PTrajectoryWithIndividualVel(start_map, goal_map, speed_map, trajectory);
+}
+
+
+void PhantomXControl::createP2PTrajectoryWithIndividualVel(const Eigen::Ref<const JointVector>& start_conf,
+                                                           const Eigen::Ref<const JointVector>& goal_conf,
+                                                           const Eigen::Ref<const JointVector>& speed,
+                                                           trajectory_msgs::JointTrajectory& trajectory)
+{
+    // Let's determine the durations for each transition first
+    JointVector durations = (goal_conf-start_conf).cwiseAbs().cwiseQuotient(speed);
+    double max_duration = durations.maxCoeff();
+    
+    // sort and keep track about indices
+    std::vector<int> indices(durations.rows());
+    std::iota(indices.begin(), indices.end(), 0); // Fill with 0,1,...,n
+    
+    // now sort indices based on durations (from short to long)
+    std::sort(indices.begin(), indices.end(),
+              [&durations](std::size_t i, std::size_t j) {return durations.coeffRef(i) < durations.coeffRef(j);});
+    
+    // init trajectory
+    int n = (int) indices.size();
+    trajectory.header.stamp = ros::Time::now();
+    trajectory.joint_names = getJointNames();  
+    trajectory.points.resize(n);
+    // create waypoints for intermediate goals (for each joint a single goal with a temporal distance of the specified duration)
+    // fill in all durations and init joint position sizes
+    for (int i=0; i<n; ++i)
+    {
+        trajectory.points[i].time_from_start = (i>0) ? trajectory.points[i-1].time_from_start + ros::Duration(durations.coeffRef(i)) : ros::Duration(durations.coeffRef(i));
+        trajectory.points[i].positions.resize(n);
+    }
+        
+    // iterate single components to initialize joint values
+    for (int i=0; i<n; ++i)
+    {
+        int curr_joint = indices[i];
+        // iterate waypoints
+        for (int j=0; j<n; ++j)
+        {
+            trajectory_msgs::JointTrajectoryPoint pt;
+            if (fabs(start_conf[curr_joint]-goal_conf[curr_joint]>0.01))
+            {
+//                 pt.positions[curr_joint] = start_conf[curr_joint] + durations[i] * speed;
+            }
+            else
+            {
+                pt.positions[curr_joint] = goal_conf[curr_joint];
+            }
+        }
+        
+        
+        // linearly interpolate trajectory (we create a constant velocity profile until the final angle is reached)
+//         Eigen::Matrix<double,n-i,1> new_conf = start_conf. + speed*durations;
+        
+//         trajectory.points[i];        
+        
+    }
+    
+    ROS_INFO_STREAM(durations.transpose());
+}
+
 bool PhantomXControl::testKinematicModel()
 {
 

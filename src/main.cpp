@@ -51,10 +51,11 @@ int main( int argc, char** argv )
   phantomx::PhantomXControl robot;
   robot.initialize();
   
+//   robot.setJoints({0,M_PI/2,0,0});
+    
+  trajectory_msgs::JointTrajectory traj;
+  robot.createP2PTrajectoryWithIndividualVel({0,0,0,0},{1.5,1,0.5,2},{0.5,0.5,0.5,0.5},traj);
   
-   
-  
-  robot.setGripperJoint(100);
   
 //   phantomx::JointVector q;
 //   q.setZero();
