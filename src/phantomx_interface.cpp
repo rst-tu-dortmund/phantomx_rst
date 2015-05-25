@@ -38,7 +38,8 @@
 
 #include <phantomx_rst/phantomx_interface.h>
 #include <signal.h>
-#include <boost/graph/graph_concepts.hpp>
+#include <sstream>
+#include <algorithm>
 
 namespace phantomx
 {
@@ -711,10 +712,13 @@ void PhantomXControl::createP2PTrajectoryWithIndividualVel(const Eigen::Ref<cons
                                                            const Eigen::Ref<const JointVector>& speed,
                                                            trajectory_msgs::JointTrajectory& trajectory)
 {
+    // Apply minimum speed
+    JointVector new_speed = (speed.array()!=0).select(speed.cwiseAbs(), 1e-3); // only the absolute value of the speed is of interest
+  
     // Let's determine the durations for each transition first
-    JointVector durations = (goal_conf-start_conf).cwiseAbs().cwiseQuotient(speed);
+    JointVector durations = (goal_conf-start_conf).cwiseAbs().cwiseQuotient(new_speed);
     double max_duration = durations.maxCoeff();
-    
+    ROS_INFO_STREAM(durations.transpose());
     // sort and keep track about indices
     std::vector<int> indices(durations.rows());
     std::iota(indices.begin(), indices.end(), 0); // Fill with 0,1,...,n
@@ -722,47 +726,47 @@ void PhantomXControl::createP2PTrajectoryWithIndividualVel(const Eigen::Ref<cons
     // now sort indices based on durations (from short to long)
     std::sort(indices.begin(), indices.end(),
               [&durations](std::size_t i, std::size_t j) {return durations.coeffRef(i) < durations.coeffRef(j);});
-    
+
     // init trajectory
-    int n = (int) indices.size();
+    int n_points = (int) indices.size();// - (durations.array() < 1e-3).count(); // skip transitions with an approx zero transition time
+    int n_joints = durations.rows();
     trajectory.header.stamp = ros::Time::now();
     trajectory.joint_names = getJointNames();  
-    trajectory.points.resize(n);
+    trajectory.points.resize(n_points);
     // create waypoints for intermediate goals (for each joint a single goal with a temporal distance of the specified duration)
     // fill in all durations and init joint position sizes
-    for (int i=0; i<n; ++i)
+    for (int i=0; i<n_points; ++i)
     {
-        trajectory.points[i].time_from_start = (i>0) ? trajectory.points[i-1].time_from_start + ros::Duration(durations.coeffRef(i)) : ros::Duration(durations.coeffRef(i));
-        trajectory.points[i].positions.resize(n);
+      trajectory.points[i].time_from_start = ros::Duration(durations.coeffRef(indices[i])); // n_points == n_joints !!!
+      trajectory.points[i].positions.resize(n_joints);
+      trajectory.points[i].velocities.resize(n_joints);
     }
-        
     // iterate single components to initialize joint values
-    for (int i=0; i<n; ++i)
+    for (int i=0; i<n_joints; ++i)
     {
         int curr_joint = indices[i];
         // iterate waypoints
-        for (int j=0; j<n; ++j)
-        {
-            trajectory_msgs::JointTrajectoryPoint pt;
-            if (fabs(start_conf[curr_joint]-goal_conf[curr_joint]>0.01))
+        for (int j=0; j<n_points; ++j)
+        {	    
+            trajectory_msgs::JointTrajectoryPoint& pt = trajectory.points[j];
+            if ( j < i )
             {
-//                 pt.positions[curr_joint] = start_conf[curr_joint] + durations[i] * speed;
+	      if (j==0)
+                pt.positions[curr_joint] = start_conf[curr_joint] +  trajectory.points[j].time_from_start.toSec() * new_speed[curr_joint];
+	      else
+	      {
+		trajectory_msgs::JointTrajectoryPoint& last_pt = trajectory.points[j-1];
+		pt.positions[curr_joint] = last_pt.positions[curr_joint] + (pt.time_from_start - last_pt.time_from_start).toSec() * new_speed[curr_joint];
+	      }
+	      pt.velocities[curr_joint] = new_speed[curr_joint];
             }
             else
             {
                 pt.positions[curr_joint] = goal_conf[curr_joint];
+		pt.velocities[curr_joint] = (j==i) ? new_speed[curr_joint] : 0.0;
             }
-        }
-        
-        
-        // linearly interpolate trajectory (we create a constant velocity profile until the final angle is reached)
-//         Eigen::Matrix<double,n-i,1> new_conf = start_conf. + speed*durations;
-        
-//         trajectory.points[i];        
-        
+        }    
     }
-    
-    ROS_INFO_STREAM(durations.transpose());
 }
 
 bool PhantomXControl::testKinematicModel()
@@ -839,6 +843,75 @@ bool PhantomXControl::testKinematicModel(const Eigen::Ref<const JointVector>& jo
   return retval;  
 }
 
+  
+void PhantomXControl::printTrajectory(const trajectory_msgs::JointTrajectory& trajectory)
+{
+  if (trajectory.points.empty())
+  {
+    ROS_WARN("PhantomXControl::printTrajectory() - cannot print empty trajectory.");
+    return;
+  }
+  
+  int no_joints = trajectory.points.front().positions.size();
+  int no_points = trajectory.points.size();
+  int no_vel = trajectory.points.front().velocities.size();
+  
+  if (no_joints==0)
+    ROS_INFO_STREAM("Position profile empty.");
+  if (no_vel==0)
+    ROS_INFO_STREAM("Velocity profile empty.");  
+  
+  ROS_INFO_STREAM(""); // add  blank line
+  
+  // Position:
+  // print header
+  std::stringstream header;
+  for (int i=0; i<no_points; ++i)
+      header << "p" << i << "\t";
+  ROS_INFO_STREAM(std::fixed << std::setprecision(2) << header.str());
+    
+  for (int i=0; i<no_joints; ++i)
+  {
+    ROS_ASSERT_MSG(trajectory.points[i].positions.size() == no_joints, "Number of joints is not consistent for all trajectory points.");
+    std::stringstream row;
+    for (int j=0; j<no_points; ++j)
+      row << trajectory.points[j].positions[i] << "\t";
+    ROS_INFO_STREAM(std::fixed << std::setprecision(2) << row.str());
+  }
+  
+  ROS_INFO_STREAM(""); // add  blank line
+  
+  // Velocity:
+  // print header
+  header.str("");
+  header.clear();
+  for (int i=0; i<no_points; ++i)
+      header << "v" << i << "\t";
+  ROS_INFO_STREAM(std::fixed << std::setprecision(2) << header.str());
+    
+  for (int i=0; i<no_vel; ++i)
+  {
+    ROS_ASSERT_MSG(trajectory.points[i].velocities.size() == no_vel, "Number of joint velocities is not consistent for all trajectory points.");
+    std::stringstream row;
+    for (int j=0; j<no_points; ++j)
+      row << trajectory.points[j].velocities[i] << "\t";
+    ROS_INFO_STREAM(std::fixed << std::setprecision(2) << row.str());
+  }
+  
+  ROS_INFO_STREAM(""); // add  blank line
+  
+  // Time:
+  // print header
+  header.str("");
+  header.clear();
+  for (int i=0; i<no_points; ++i)
+      header << "t" << i << "\t";
+  ROS_INFO_STREAM(std::fixed << std::setprecision(2) << header.str());
+  std::stringstream row;
+  for (int j=0; j<no_points; ++j)
+    row << trajectory.points[j].time_from_start.toSec() << "\t";
+  ROS_INFO_STREAM(std::fixed << std::setprecision(2) << row.str());
+}
   
   
 } // end namespace phantomx

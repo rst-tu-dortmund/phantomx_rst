@@ -487,6 +487,11 @@ public:
     ros::shutdown();
   } 
   
+  /**
+   * @brief Print the position and velocity porfile of a given trajectory on the screen.
+   */
+  static void printTrajectory(const trajectory_msgs::JointTrajectory& trajectory);
+  
   //@}
   
 
