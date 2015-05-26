@@ -229,6 +229,7 @@ public:
    * Be careful, this call is a non-blocking call and the robot will
    * hold the specified velocities until joint limits are exceeded or
    * a new command is sent.
+   * Specify additional sleep commands with ros::Duration(s).sleep() or ros::Rate.
    * @param velocities vector of desired joint velocities
    */
   void setJointVel(const Eigen::Ref<const JointVector>& velocities);
@@ -239,6 +240,7 @@ public:
    * Be careful, this call is a non-blocking call and the robot will
    * hold the specified velocities until joint limits are exceeded or
    * a new command is sent.
+   * Specify additional sleep commands with ros::Duration(s).sleep() or ros::Rate.
    * @remarks This overload accepts initializer-lists: <code> setJointVel({0.1, 0.1, 0, 0}) </code>
    * @param velocities std::vector< double > of desired joint velocities
    */
@@ -454,11 +456,34 @@ public:
    */
   bool checkSelfCollision(const Eigen::Ref<const JointVector>& joint_values);
     
+  /**
+   * @brief Construct a point-to-point transition in joint_space with individual velocity profiles.
+   * 
+   * This method creates a joint space trajectory between \c start_conf and \c goal_conf such that
+   * each joint drives to the \c goal_conf with it's individual velocity.
+   * The transition is completed, after each joint arrives at the \c goal_conf.
+   * @param start_conf start joint configuration
+   * @param goal_conf goal joint configuration
+   * @param speed individual joint velocities
+   * @param[out] trajectory joint trajectory that contains subgoals in order to achieve the behavior desribed above.
+   */
   void createP2PTrajectoryWithIndividualVel(const Eigen::Ref<const JointVector>& start_conf,
                                                    const Eigen::Ref<const JointVector>& goal_conf,
                                                    const Eigen::Ref<const JointVector>& speed,
                                                    trajectory_msgs::JointTrajectory& trajectory);
   
+  
+  /**
+   * @brief Construct a point-to-point transition in joint_space with individual velocity profiles.
+   * 
+   * This method creates a joint space trajectory between \c start_conf and \c goal_conf such that
+   * each joint drives to the \c goal_conf with it's individual velocity.
+   * The transition is completed, after each joint arrives at the \c goal_conf.
+   * @param start_conf start joint configuration given as std::vector of doubles
+   * @param goal_conf goal joint configuration given as std::vector of doubles
+   * @param speed individual joint velocities given as std::vector of doubles
+   * @param[out] trajectory joint trajectory that contains subgoals in order to achieve the behavior desribed above.
+   */  
   void createP2PTrajectoryWithIndividualVel(const std::vector<double>& start_conf,
                                                    const std::vector<double>& goal_conf,
                                                    const std::vector<double>& speed,
