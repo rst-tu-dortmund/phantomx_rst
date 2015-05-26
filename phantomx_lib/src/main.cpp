@@ -54,45 +54,9 @@ int main( int argc, char** argv )
 //   robot.setJoints({M_PI/2,M_PI/2,0,0},{0.6,0.2,0,0});
   robot.setJointVel({0.6,0.2,0,0});
     
-//   robot.printTrajectory(traj);
 
-  ros::Duration(6.0).sleep();
+  ros::waitForShutdown();
   
-//   phantomx::JointVector q;
-//   q.setZero();
-//   q[0] = 0.5;
-//   robot.setJoints(q);
-//   robot.setEndeffectorPose(Eigen::Vector3d(0,0.15,0.0), M_PI, 0.5);
-  
-//   robot.setEndeffectorPoseInc(0,0,0.05, 0.1);
-  
-  
-  /*
-  actionlib::SimpleActionClient<control_msgs::GripperCommandAction> gripper_ac("/gripper_controller/gripper_action", true);
-  
-  ROS_INFO("Waiting for gripper action server to start.");
-  gripper_ac.waitForServer();
-  
-  ROS_INFO("Gripper action server started, sending goal.");
-  
-  control_msgs::GripperCommandGoal gripper_goal;
-  gripper_goal.command.position = 0.01;
-  
-  gripper_ac.sendGoal(gripper_goal);
- 
-  
-  //wait for the action to return
-  bool finished_before_timeout = gripper_ac.waitForResult(ros::Duration(30.0));
-
-  if (finished_before_timeout)
-  {
-    actionlib::SimpleClientGoalState state = gripper_ac.getState();
-    ROS_INFO("Action finished: %s",state.toString().c_str());
-  }
-  else
-    ROS_INFO("Action did not finish before the time out.");
-  
-  */
   
   return 0;
 }

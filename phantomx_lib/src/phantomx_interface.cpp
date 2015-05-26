@@ -122,7 +122,7 @@ void PhantomXControl::initialize()
   
   
   // setup gripper
-  _gripper_joint_name = "gripper_joint";
+  _gripper_joint_name = "gripper_link_joint";
   if (!n.hasParam(arbotix_joints_ns + _gripper_joint_name))
     ROS_ERROR("Could not find the specified gripper joint name: %s.", _gripper_joint_name.c_str());
   n.getParam(arbotix_joints_ns + _gripper_joint_name + "/min_angle", _gripper_lower_bound);
