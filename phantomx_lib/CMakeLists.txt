@@ -102,7 +102,7 @@ endif()
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
-#  LIBRARIES phantomx_rst
+  LIBRARIES phantomx_lib
   CATKIN_DEPENDS
   	actionlib 
 	control_msgs

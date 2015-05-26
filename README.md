@@ -2,10 +2,11 @@ phantomx_rst ROS Package
 ========================
 
 This metapackage is intended for controlling and simulating the PhantomX Pincher robot at the RST.
-It is intended for educational purposes and therefore contains the most relevant packages.
+It is developed and composed for educational purposes and contains relevant packages.
 
-Install
--------
+
+Installation
+------------
 
 First, make sure that ROS and moveit is installed properly (we are currently on ROS indigo):
     
@@ -17,14 +18,18 @@ But an important feature is missing in the official version, thus we are using a
     cd ~/catkin_ws/src
     git clone https://github.com/croesmann/arbotix_ros.git
 
+
 Now it is time to checkout this package:
 
     git clone https://github.com/rst-tu-dortmund/phantomx_rst.git
 
+
 Check if everything compiles:
+
     cd ~/catkin-ws
     catkin_make
     
+
 Getting Started
 ---------------
 
@@ -34,7 +39,7 @@ The controller is required for all applications:
     
     roslaunch phantomx_rst arm.launch
 
-Or for simulation:
+In case of a simulation launch:
  
     roslaunch phantomx_rst arm_sim.launch
 
@@ -45,17 +50,20 @@ Run
 
     roslaunch phantomx_rst arm_moveit.launch
 
+
 **MoveIt (C++)**
 
-Close the GUI and start the visualization only
+Close the GUI and start visualization only
 
     roslaunch phantomx_rst moveit_rviz.launch
 
-Start the move group instance (required for planning)
+
+Start the move_group instance (required for planning)
  
     roslaunch phantomx_rst move_group.launch
 
-Look at the code of the 'phantomx_control moveit node' and feel free to insert your own code here.
+
+Look at the code of the *phantomx_control moveit node* and feel free to insert your own code here.
 Run that node using
 
     rosrun phantomx_control moveit_control
@@ -66,6 +74,7 @@ Run that node using
 Look at the phantomx_lib Code-API.
 More information will be provided here soon...
 
+    rosrun phantomx_control simple_conrol
 
 
 Remarks

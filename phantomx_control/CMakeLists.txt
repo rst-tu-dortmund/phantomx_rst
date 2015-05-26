@@ -10,7 +10,7 @@ set(CMAKE_BUILD_TYPE RelWithDebInfo) #None, Debug, Release, RelWithDebInfo, MinS
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED
 roscpp
-phantomx_rst
+phantomx_lib
 actionlib
 control_msgs
 tf
@@ -27,6 +27,8 @@ pluginlib
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 find_package(Eigen REQUIRED)
+
+find_package(OpenCV)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -108,7 +110,7 @@ endif()
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
-#  LIBRARIES phantomx_rst
+  #LIBRARIES phantomx_lib
   CATKIN_DEPENDS
   	actionlib 
         phantomx_lib
@@ -122,7 +124,7 @@ catkin_package(
 	moveit_ros_perception
 	moveit_ros_planning_interface
 	pluginlib
-  DEPENDS system_lib Eigen3
+  DEPENDS system_lib Eigen3 opencv2
 )
 
 ###########
@@ -135,12 +137,17 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${Eigen_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 
 ## Declare a cpp executable
 add_executable(moveit_control src/main_moveit.cpp)
-target_link_libraries(moveit_control ${catkin_LIBRARIES} phantomx_lib)
+target_link_libraries(moveit_control ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+
+add_executable(simple_control src/main_simple.cpp)
+target_link_libraries(simple_control ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+
 
 
 ## Add cmake target dependencies of the executable/library
