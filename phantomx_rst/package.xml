@@ -1,0 +1,24 @@
+<package>
+  <name>phantomx_rst</name>
+  <version>0.0.0</version>
+  <description>
+    The phantomx arm meta package.
+  </description>
+  <author>Jorge Santos</author>
+  <maintainer email="christoph.roesmann@tu-dortmund.de">Jorge Santos</maintainer>
+
+  <!-- This meta package contains adopted packages from the turtlebot_arm package -->
+  <license>Research/Education only</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <run_depend>phantomx_lib</run_depend>
+  <run_depend>phantomx_control</run_depend>
+  <run_depend>turtlebot_arm_ikfast_plugin</run_depend>
+  <run_depend>turtlebot_arm_moveit_config</run_depend>
+  <run_depend>turtlebot_arm_description</run_depend>
+
+  <export>
+    <!--metapackage/-->
+  </export>
+</package>

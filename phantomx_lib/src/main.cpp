@@ -37,7 +37,7 @@
  *********************************************************************/
 
 
-#include <phantomx_rst/phantomx_interface.h>
+#include <phantomx_lib/phantomx_interface.h>
 
 
 

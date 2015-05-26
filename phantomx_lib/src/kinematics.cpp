@@ -36,7 +36,7 @@
  * Author: Christoph Rösmann
  *********************************************************************/
 
-#include <phantomx_rst/kinematics.h>
+#include <phantomx_lib/kinematics.h>
 
 
 namespace phantomx
