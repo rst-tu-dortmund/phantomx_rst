@@ -40,6 +40,7 @@
 #include <signal.h>
 #include <sstream>
 #include <algorithm>
+#include <arbotix_msgs/Relax.h>
 
 namespace phantomx
 {
@@ -120,9 +121,14 @@ void PhantomXControl::initialize()
 	_joint_max_speeds[i] = deg_to_rad( _joint_max_speeds[i] );
   }     
   
+  // setup services for relaxing the servos
+  for (const std::string& name : _joint_names_arm)
+  {
+    _joint_relax_services.push_back( n.serviceClient<arbotix_msgs::Relax>( name + "/relax") );
+  }
   
   // setup gripper
-  _gripper_joint_name = "gripper_link_joint";
+  _gripper_joint_name = "gripper_joint";
   if (!n.hasParam(arbotix_joints_ns + _gripper_joint_name))
     ROS_ERROR("Could not find the specified gripper joint name: %s.", _gripper_joint_name.c_str());
   n.getParam(arbotix_joints_ns + _gripper_joint_name + "/min_angle", _gripper_lower_bound);
@@ -135,6 +141,7 @@ void PhantomXControl::initialize()
 //   _gripper_neutral = normalize_angle_rad( deg_to_rad(_gripper_neutral) );
 //   _gripper_max_speed = deg_to_rad( _gripper_max_speed );
   
+  _joint_relax_services.push_back( n.serviceClient<arbotix_msgs::Relax>( _gripper_joint_name + "/relax") );
   
   
   // Setup kinematic model
@@ -801,6 +808,23 @@ void PhantomXControl::createP2PTrajectoryWithIndividualVel(const Eigen::Ref<cons
     }
 }
 
+
+bool PhantomXControl::relaxServos()
+{
+    bool ret_val = true;
+    int idx=1;
+    for (ros::ServiceClient& serv : _joint_relax_services)
+    {
+        arbotix_msgs::Relax relax;
+        if (!serv.call(relax))
+        {
+            ROS_WARN("Failed to relax servo %d.", idx);
+            ret_val = false;
+        }
+        ++idx;
+    }
+    return ret_val;    
+}
 
 bool PhantomXControl::testKinematicModel()
 {

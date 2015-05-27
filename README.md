@@ -48,7 +48,7 @@ In case of a simulation launch:
 
 Run
 
-    roslaunch phantomx_rst arm_moveit.launch
+    roslaunch moveit_gui_all.launch
 
 
 **MoveIt (C++)**

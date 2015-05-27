@@ -148,6 +148,8 @@ target_link_libraries(moveit_control ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 add_executable(simple_control src/main_simple.cpp)
 target_link_libraries(simple_control ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
+add_executable(measure_states src/measure_states.cpp)
+target_link_libraries(measure_states ${catkin_LIBRARIES})
 
 
 ## Add cmake target dependencies of the executable/library

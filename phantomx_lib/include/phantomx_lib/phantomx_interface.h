@@ -495,6 +495,11 @@ public:
   void stopMoving();
   
   /**
+   * @brief Relax all servos (deactivate torque)
+   */
+  bool relaxServos();
+  
+  /**
    * @brief Signal handler that terminates all actions before calling ros::shutdown().
    * 
    * The signal handler will be automatically overwritten in the initialize method.
@@ -549,6 +554,8 @@ private:
   std::unique_ptr<ros::AsyncSpinner> _joints_sub_spinner;
   bool _joint_values_received = false;
   tf::TransformListener _tf;
+  
+  std::vector< ros::ServiceClient > _joint_relax_services;
   
   Eigen::Affine3d _base_T_j1 = Eigen::Affine3d::Identity(); //!< Coordinate transformation from the base to the first joint
   Eigen::Affine3d _j1_T_base = Eigen::Affine3d::Identity(); //!< Coordinate transformation from the first joint to the base

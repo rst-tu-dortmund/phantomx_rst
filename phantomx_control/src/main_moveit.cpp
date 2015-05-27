@@ -15,7 +15,7 @@
 
 int main( int argc, char** argv )
 {
-  ros::init(argc, argv, "test_optim_node");
+  ros::init(argc, argv, "movit_control");
   ros::NodeHandle n("~");
   
   // Start a ROS spinning thread (required for processing callbacks while moveit is blocking)
@@ -23,6 +23,10 @@ int main( int argc, char** argv )
   spinner.start();
   
   moveit::planning_interface::MoveGroup group("arm");  
+  moveit::planning_interface::MoveGroup gripper("gripper");  
+  
+  group.setPoseReferenceFrame("base_link"); // plan w.r.t. base_link frame by default
+//   group.setEndEffectorLink();
   
   ros::Publisher display_publisher = n.advertise<moveit_msgs::DisplayTrajectory>("/move_group/display_planned_path", 1, true);
   moveit_msgs::DisplayTrajectory display_trajectory;
@@ -30,7 +34,10 @@ int main( int argc, char** argv )
   ROS_INFO("Reference frame: %s", group.getPlanningFrame().c_str());
   ROS_INFO("Endeffector frame: %s", group.getEndEffectorLink().c_str());
   
-
+  // Set values for your gripper here
+  const double gripper_open = 0.05;
+  const double gripper_closed = 0.005;
+  
   group.setGoalPositionTolerance(0.04);
   group.setGoalOrientationTolerance(0.1);
   group.allowReplanning(true);
@@ -40,6 +47,20 @@ int main( int argc, char** argv )
   group.move(); // we do not test before, just move if possible ;-)
                 // move is a blocking call
                 
+                
+  // test gripper
+  ROS_INFO("Open Gripper");
+  gripper.setJointValueTarget({gripper_open});
+  gripper.move();      
+  
+  ros::Duration(3).sleep(); // wait a few seconds here
+  
+  ROS_INFO("Close Gripper");
+  gripper.setJointValueTarget({gripper_closed});
+  gripper.move();              
+                
+  ros::Duration(3).sleep(); // wait a few seconds here   
+  
   // Planning to a joint-space goal  
   ROS_INFO("Planing to a joint-space goal");
     
@@ -110,10 +131,8 @@ int main( int argc, char** argv )
   
 
   
-  ROS_INFO("Demo completed. Waiting for user shutdown...");
+  ROS_INFO("Demo completed. Waiting for user shutdown (ctrl-c).");
   ros::waitForShutdown();
-
-
 
   return 0;
 }
