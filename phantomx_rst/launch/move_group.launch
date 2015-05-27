@@ -1,6 +1,8 @@
 <launch>
 
-  <include file="$(find turtlebot_arm_moveit_config)/launch/planning_context.launch" />
+  <include file="$(find turtlebot_arm_moveit_config)/launch/planning_context.launch">
+    <arg name="arm_type" value="pincher"/>
+  </include>
 
   <!-- GDB Debug Option -->
   <arg name="debug" default="false" />

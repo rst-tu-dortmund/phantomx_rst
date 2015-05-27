@@ -13,7 +13,7 @@
   <arg name="debug" default="false" />
   
   <!-- Arm_type from environ.  NOTE: setting from arg not yet supported -->
-  <arg name="arm_type" default="$(optenv TURTLEBOT_ARM1 turtlebot)"/>
+  <arg name="arm_type" default="$(optenv TURTLEBOT_ARM1 pincher)"/>
 
   <!-- Load the URDF, SRDF and other .yaml configuration files on the param server -->
   <include file="$(find turtlebot_arm_moveit_config)/launch/planning_context.launch">

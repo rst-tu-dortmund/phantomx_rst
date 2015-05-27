@@ -74,7 +74,7 @@ Run that node using
 Look at the phantomx_lib Code-API.
 More information will be provided here soon...
 
-    rosrun phantomx_control simple_conrol
+    rosrun phantomx_control simple_control
 
 
 Remarks
