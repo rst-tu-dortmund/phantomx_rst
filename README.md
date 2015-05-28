@@ -35,6 +35,7 @@ Getting Started
 
 The controller is required for all applications:
     
+    sudo chmod 777 /dev/ttyUSB0   # Set permissions for the usb/serial conv.
     roslaunch phantomx_rst arm.launch
 
 In case of a simulation launch:
