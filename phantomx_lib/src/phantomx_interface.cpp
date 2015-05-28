@@ -45,10 +45,8 @@
 namespace phantomx
 {
   
-PhantomXControl::PhantomXControl(bool init_now)
+PhantomXControl::PhantomXControl()
 {
-    if (init_now)
-        initialize();
 }
 
 PhantomXControl::~PhantomXControl()
@@ -258,10 +256,12 @@ void PhantomXControl::jointStateCallback(const sensor_msgs::JointStateConstPtr& 
     if (joint_idx==255) // this must be our gripper! (see initialze())
         _gripper_value = msg->position[i];
     else
+    {
         _joint_angles[joint_idx] = msg->position[i];
+         if (!_joint_values_received)
+           _joint_values_received = true;
+    }
   }
-  if (!_joint_values_received)
-      _joint_values_received = true;
 }
 
 void PhantomXControl::getJointAngles(Eigen::Ref<JointVector> values_out)
@@ -555,14 +555,7 @@ bool PhantomXControl::verifyTrajectory(trajectory_msgs::JointTrajectory& traject
   int pt_idx = 0;
   for (trajectory_msgs::JointTrajectoryPoint& state : trajectory.points)
   {
-      // check transition mode (synchronous transition or individual velocities
-      bool sync_duration_mode = state.time_from_start.sec!=0 || state.time_from_start.nsec!=0;
-      if ( (sync_duration_mode && !state.velocities.empty()) || (!sync_duration_mode && state.velocities.empty()) )
-      {
-// 	ROS_ERROR("PhantomXControl::verifyTrajectory(): you must either specify a total duration (time_from_start) or individual velocities. Do not choose both.");
-// 	return false;
-      }
-      
+
       Eigen::Map<const JointVector> values(state.positions.data()); // get an Eigen map for the position part for further computations.
       
       // check joint angle limits
@@ -584,6 +577,9 @@ bool PhantomXControl::verifyTrajectory(trajectory_msgs::JointTrajectory& traject
 	  state.velocities[i] = _joint_max_speeds.coeffRef(i);
 	}
       }
+      
+      // check transition mode (synchronous transition or individual velocities
+      bool sync_duration_mode = state.time_from_start.sec!=0 || state.time_from_start.nsec!=0;
       if (sync_duration_mode)
       {
 	  // get maximum absolute angle difference 
@@ -600,7 +596,7 @@ bool PhantomXControl::verifyTrajectory(trajectory_msgs::JointTrajectory& traject
       if (checkSelfCollision(values))
       {
           ROS_ERROR("PhantomXControl::verifyTrajectory(): Self-collision detected at point %d.", pt_idx);
-//           return false;
+          return false;
       }
       
       // Store pos vector for the subsequent iteration (using C++ placement new operator)
@@ -706,6 +702,11 @@ bool PhantomXControl::setEndeffectorPose(const Eigen::Ref<const Eigen::Vector3d>
       setJoints(joint_angles, speed, false, blocking);
 }
 
+bool PhantomXControl::setEndeffectorPose(const std::vector<double>& desired_xyz, double desired_pitch, double speed, bool relative, bool blocking)
+{
+    Eigen::Map<const Eigen::Vector3d> xyz_map(desired_xyz.data());
+    setEndeffectorPose(xyz_map, desired_pitch, speed, relative, blocking);
+}
 
 
 void PhantomXControl::getJacobian(RobotJacobian& jacobian)

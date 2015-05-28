@@ -170,7 +170,7 @@ public:
    * @brief Compute the joint angles that correspond to a given 4D pose w.r.t. to the robot base frame
    * @details This methods overloads a more generic function and limits the pose to the position part and a pitch angle.
    * @param desired_xyz Desired [x,y,z] coordinates in the base frame
-   * @param desired_pitch Desired pitch angle in the base frame (<e> endeffector points upwards for 0 [rad] and downwards for +-pi [rad] </e>)
+   * @param desired_pitch Desired pitch angle in the base frame (<e> endeffector points upwards for -pi/2 [rad] and downwards for +pi/2 [rad] </e>)
    * @param[out] joint_values the corresponding joint values. Initit them with the current joint values, in order to choose
    *                          either the elbow up or elbow down solution depending on the current angular distance.
    * @return \c true if a solution was found, \c false otherwise.

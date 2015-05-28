@@ -2,8 +2,6 @@ phantomx_rst ROS Package
 ========================
 
 This metapackage is intended for controlling and simulating the PhantomX Pincher robot at the RST.
-It is developed and composed for educational purposes and contains relevant packages.
-
 
 Installation
 ------------
@@ -55,7 +53,7 @@ Run
 
 Close the GUI and start visualization only
 
-    roslaunch phantomx_rst moveit_rviz.launch
+    roslaunch phantomx_rst arm_rviz.launch
 
 
 Start the move_group instance (required for planning)
@@ -74,11 +72,32 @@ Run that node using
 Look at the phantomx_lib Code-API.
 More information will be provided here soon...
 
+    roslaunch phantomx_rst arm_rviz.launch
     rosrun phantomx_control simple_control
 
 
+Licence
+-------
+The *phantomx_rst* meta-package is mainly developed and composed for educational purposes.
+
+The *phantomx_lib*, *phantomx_control* and *phantomx_rst* packages (as part of the meta-package) are licensed under the BSD license.
+The packages depend on other ROS packages, which are listed in the package.xml and that are also BSD licensed,
+and the following third-party packages:
+ * Eigen, MPL2 license, http://eigen.tuxfamily.org
+ * OpenCV, BSD license, http://opencv.org
+
+In order to simplify the configuration process, especially for educational purposes,
+some modified versions of the *turtlebot_arm* packages (https://github.com/corot/turtlebot_arm, https://github.com/turtlebot/turtlebot_arm) are included.
+
+
+
+All packages included are distributed in the hope that they will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the licenses for more details.
+
 Remarks
 -------
+
+In visualizatoin the separation of both fingers of the gripper is just an linear approximation of the real euclidean distance. However, this is ok for our purposes
+right now.
 
 Note, this package includes an (slighly) adopted version of the turtlebot_arm package (resp. the branch https://github.com/corot/turtlebot_arm.git).
 It is copied into this metapackage in order to allow a simple integration for students that start working with the PhantomX.

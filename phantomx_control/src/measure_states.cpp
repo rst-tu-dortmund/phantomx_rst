@@ -50,6 +50,7 @@ int main( int argc, char** argv )
  
   phantomx::PhantomXControl robot;
 
+  robot.initialize();
   
   ROS_INFO("Reference frame: %s", "/arm_base_link"); // this is hardcoded atm, todo add as parameter in robot
   ROS_INFO("Endeffector frame: %s", "/gripper_link"); // this is hardcoded atm, todo add as parameter in robot

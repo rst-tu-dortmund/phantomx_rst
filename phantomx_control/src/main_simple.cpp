@@ -50,10 +50,20 @@ int main( int argc, char** argv )
  
   phantomx::PhantomXControl robot;
   
-//   robot.setJoints({M_PI/2,M_PI/2,0,0},{0.6,0.2,0,0});
-  robot.setJointVel({0.6,0.2,0,0});
-    
+  robot.initialize();
+  
+  robot.setJoints({0,-M_PI/2,0,0},0.2);
+  
+  robot.setEndeffectorPose({0, 0, 0.15}, 0, 0.2);
+  
+  robot.setEndeffectorPose({0.1, 0, 0.05}, M_PI/2, 0.2);
+  robot.setEndeffectorPoseInc(0,0.02,0,0.2);
+  robot.setEndeffectorPoseInc(0,0,-0.05,0.2);
 
+  
+  
+  
+  ROS_INFO("Demo completed. Waiting for user shutdown (ctrl-c).");
   ros::waitForShutdown();
   
   

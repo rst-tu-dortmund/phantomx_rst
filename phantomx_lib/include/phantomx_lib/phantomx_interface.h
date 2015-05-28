@@ -83,9 +83,8 @@ public:
   
   /**
    * @brief Construct the class
-   * @param init_now Specify whether the robot / class should be initialized now or later manually.
    */
-  PhantomXControl(bool init_now=true);
+  PhantomXControl();
   
   /**
    * @brief Destruct the class
@@ -340,7 +339,7 @@ public:
    * @brief Compute the joint angles that correspond to a given 4D pose w.r.t. to the robot base frame
    * @details This methods overloads a more generic function and limits the pose to the position part and a pitch angle.
    * @param desired_xyz Desired [x,y,z] coordinates in the base frame
-   * @param desired_pitch Desired pitch angle in the base frame (<e> endeffector points upwards for 0 [rad] and downwards for +-pi [rad] </e>)
+   * @param desired_pitch Desired pitch angle in the base frame (<e> endeffector points upwards for -pi/2 [rad] and downwards for +pi/2 [rad] </e>)
    * @param duration duration for the transition to the new joint state.
    * @param relative if \c true, new joint states are relative to the previous one, otherwise absolute
    * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
@@ -352,13 +351,26 @@ public:
    * @brief Compute the joint angles that correspond to a given 4D pose w.r.t. to the robot base frame
    * @details This methods overloads a more generic function and limits the pose to the position part and a pitch angle.
    * @param desired_xyz Desired [x,y,z] coordinates in the base frame
-   * @param desired_pitch Desired pitch angle in the base frame (<e> endeffector points upwards for 0 [rad] and downwards for +-pi [rad] </e>)
+   * @param desired_pitch Desired pitch angle in the base frame (<e> endeffector points upwards for -pi/2 [rad] and downwards for +pi/2 [rad] </e>)
    * @param speed speed for the transition w.r.t. the joint with the highest deviation from the final state.
    * @param relative if \c true, new joint states are relative to the previous one, otherwise absolute
    * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
    * @return \c true if a solution was found, \c false otherwise.
    */
   bool setEndeffectorPose(const Eigen::Ref<const Eigen::Vector3d>& desired_xyz, double desired_pitch, double speed, bool relative=false, bool blocking=true);
+  
+  /**
+   * @brief Compute the joint angles that correspond to a given 4D pose w.r.t. to the robot base frame
+   * @details This methods overloads a more generic function and limits the pose to the position part and a pitch angle.
+   * @param desired_xyz Desired [x,y,z] coordinates in the base frame (as std::vector< double >)
+   * @param desired_pitch Desired pitch angle in the base frame (<e> endeffector points upwards for -pi/2 [rad] and downwards for +pi/2 [rad] </e>)
+   * @param speed speed for the transition w.r.t. the joint with the highest deviation from the final state.
+   * @param relative if \c true, new joint states are relative to the previous one, otherwise absolute
+   * @param blocking if \c true, wait until the goal is reached or the timeout is exceeded before continuing 
+   * @return \c true if a solution was found, \c false otherwise.
+   */
+  bool setEndeffectorPose(const std::vector<double>& desired_xyz, double desired_pitch, double speed, bool relative=false, bool blocking=true);
+  
   
     /**
    * @brief Incrementally change the position of the endeffector / gripper (in world coordinates).

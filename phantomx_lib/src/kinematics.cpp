@@ -141,7 +141,6 @@ bool KinematicModel::computeInverseKinematics(const Eigen::Affine3d& desired_pos
     
   JointVector q_cand1 = joint_values;
   JointVector q_cand2 = joint_values;
-  
   // calculate cand1:
   
   // we must rotate j1 first by the angle q1 that we have computed already:
@@ -149,13 +148,13 @@ bool KinematicModel::computeInverseKinematics(const Eigen::Affine3d& desired_pos
   Eigen::Affine3d j2_T_pose = _j2_T_j1 * Eigen::AngleAxisd( -q_cand1.coeffRef(0), Eigen::Vector3d::UnitY() ) * j1_T_pose;
   bool success_cand1 = isInsideInterval(_joint_lower_bounds.coeffRef(0),q_cand1.coeffRef(0),_joint_upper_bounds.coeffRef(0));
   success_cand1 = success_cand1 && computeIk3LinkPlanarElbowUpAndDown(j2_T_pose, q_cand1.bottomRows(3));
-  
+ 
   // calculate cand2:
   q_cand2.coeffRef(0) = q1_cand2;
   j2_T_pose = _j2_T_j1 * Eigen::AngleAxisd( -q_cand2.coeffRef(0), Eigen::Vector3d::UnitY() ) * j1_T_pose;
   bool success_cand2 = isInsideInterval(_joint_lower_bounds.coeffRef(0),q_cand2.coeffRef(0),_joint_upper_bounds.coeffRef(0));
   success_cand2 = success_cand2 && computeIk3LinkPlanarElbowUpAndDown(j2_T_pose, q_cand2.bottomRows(3)); 
-  
+
   if (success_cand1 && success_cand2)
   {
       // check forwards kinematics
@@ -227,11 +226,14 @@ bool KinematicModel::computeInverseKinematics(const Eigen::Affine3d& desired_pos
 
 bool KinematicModel::computeIk3LinkPlanar(const Eigen::Affine3d& j2_T_pose, Eigen::Ref<Eigen::Vector3d> values, bool elbow_up) const
 {
+  // The gripper_link coordinate system is assumed as follows:
+  // The x axis is aligned with the robot arm in the default configuration
+    
   // we first compute the two link planar arm solution w.r.t. to the position of the last joint (denoted as point "w")
-  // In order to obtain the position of the last joint "w", we translate the desired pose by the link length along the negative "z" axis w.r.t. to the system of joint1.
-  // WARNING: z2,z3,z4 axes must be aligned with the links in the default joint configuration (since we formulate the IK for according to the URDF from the turtlebot_arm package)!
+  // In order to obtain the position of the last joint "w", we translate the desired pose by the link length along the negative "x" axis w.r.t. to the system of joint1.
+  // WARNING: z2,z3 axes must be aligned with the links in the default joint configuration (since we formulate the IK for according to the URDF from the turtlebot_arm package)!
   //	      for joint1: y1 is aligned with the link instead of z1 (for q1=0)
-  // Joint angles are negative and they are identical zero at the z-axis!!!!!!!!!!!!!!!!
+  // Joint angles are negative and they are zero counting from the z-axis!!!
   // Nomenclature of the "underlying" three link planar arm:
   // a1: length of link1
   // a2: length of link2
@@ -239,10 +241,10 @@ bool KinematicModel::computeIk3LinkPlanar(const Eigen::Affine3d& j2_T_pose, Eige
   double a1 = fabs(_j2_T_j3.translation().z());
   double a2 = fabs(_j3_T_j4.translation().z());
   double a3 = fabs(_j4_T_gripper.translation().z());
-  
-  // now transform the point (0,0,-a3) w.r.t. the gripper system to the j2 system
-  // we can ignore the y compontent since we operate planar only from now on
-  Eigen::Vector3d w = j2_T_pose * Eigen::Vector3d(0,0,-a3);
+
+  // now transform the point (-a3,0,0) w.r.t. the gripper system to the j2 system
+  // we can ignore the y compontent since we operate planar only from now on (just consider z-x plane)
+  Eigen::Vector3d w = j2_T_pose * Eigen::Vector3d(-a3,0,0);
   double w_sq_length_2d = w.z()*w.z() + w.x()*w.x();
   
   double c2 = ( w_sq_length_2d - a1*a1 - a2*a2 ) / (2*a1*a2);
@@ -257,7 +259,7 @@ bool KinematicModel::computeIk3LinkPlanar(const Eigen::Affine3d& j2_T_pose, Eige
   
   if (!isInsideInterval(-1.0,c2,1.0))
   {
-    ROS_ERROR("Inverse Kinematics: No solution found.");
+    ROS_DEBUG("Inverse Kinematics: No solution found.");
     return false;
   }
   
@@ -273,17 +275,18 @@ bool KinematicModel::computeIk3LinkPlanar(const Eigen::Affine3d& j2_T_pose, Eige
   
   // now compute the value of joint 2
   double aux = a1+a2*cos(-values.coeffRef(1));
-  if ( fabs(w.x())<1e-2 && fabs(aux)<1e-2) // if w.x()==0  or aux==0, link a1 and a2 are anti-parallel and colinear, which leads to a self-collision
+  if ( fabs(w.z())<1e-2 && fabs(aux)<1e-2) // if w.x()==0  or aux==0, link a1 and a2 are anti-parallel / colinear, which leads to a self-collision
   {
-    ROS_ERROR("inverseKinematics: Cannot determine joint angle q2 for the desired pose.");
+    ROS_DEBUG("inverseKinematics: Cannot determine joint angle q2 for the desired pose.");
     return false;
   }
  values.coeffRef(0) = normalize_angle_rad(M_PI/2 - std::atan2(w.z(),w.x()) + std::atan2(a2*sin(-values.coeffRef(1)),aux));  // We must add pi/2, since our default position for q2=0 is upwards!! 
 
     // determine desired final orientation of the gripper in the joint 2 frame
-  double phi = -1*std::atan2(-j2_T_pose.linear().coeffRef(0,2), j2_T_pose.linear().coeffRef(2,2));
-//   RpyVector rpy = rotMatToRpy(j2_T_pose.linear());
-//   double phi = rpy.coeffRef(1); // pitch value
+//   double phi = -1*std::atan2(-j2_T_pose.linear().coeffRef(0,2), j2_T_pose.linear().coeffRef(2,2));
+  RpyVector rpy = convertRotMatToRpy(j2_T_pose.linear());
+  double phi = M_PI/2 + rpy.coeffRef(1); // pitch value
+    
   
   // it is phi = q2+q3+q4
   values.coeffRef(2) = normalize_angle_rad(phi - values.coeffRef(1) - values.coeffRef(0));
