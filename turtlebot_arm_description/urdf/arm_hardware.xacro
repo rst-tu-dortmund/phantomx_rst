@@ -10,6 +10,8 @@
   <xacro:property name="AX12_WIDTH" value="0.038"/>
   <xacro:property name="AX12_LENGTH" value="0.050"/>
   <xacro:property name="F2_HEIGHT" value="0.0265"/>
+  <xacro:property name="FACTOR_GRIPPER_TRANSL" value="0.01"/>
+  <xacro:property name="OFFSET_GRIPPER_TRANSL" value="0.029"/>
 
   <xacro:macro name="arm_mount" params="parent name color *origin">
     <joint name="${name}_joint" type="fixed">

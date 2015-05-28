@@ -49,7 +49,6 @@ int main( int argc, char** argv )
   
  
   phantomx::PhantomXControl robot;
-  robot.initialize();
   
 //   robot.setJoints({M_PI/2,M_PI/2,0,0},{0.6,0.2,0,0});
   robot.setJointVel({0.6,0.2,0,0});

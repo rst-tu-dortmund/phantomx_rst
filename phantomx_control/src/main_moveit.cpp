@@ -35,13 +35,13 @@ int main( int argc, char** argv )
   ROS_INFO("Endeffector frame: %s", group.getEndEffectorLink().c_str());
   
   // Set values for your gripper here
-  const double gripper_open = 0.05;
-  const double gripper_closed = 0.005;
+  const double gripper_open = 0.7;
+  const double gripper_closed = -0.6;
   
   group.setGoalPositionTolerance(0.04);
   group.setGoalOrientationTolerance(0.1);
   group.allowReplanning(true);
-  
+    
   ROS_INFO("Moving into default configuration");
   group.setJointValueTarget({0,0,0,0,0});
   group.move(); // we do not test before, just move if possible ;-)
@@ -60,7 +60,7 @@ int main( int argc, char** argv )
   gripper.move();              
                 
   ros::Duration(3).sleep(); // wait a few seconds here   
-  
+
   // Planning to a joint-space goal  
   ROS_INFO("Planing to a joint-space goal");
     

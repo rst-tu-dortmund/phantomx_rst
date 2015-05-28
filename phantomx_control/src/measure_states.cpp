@@ -49,7 +49,7 @@ int main( int argc, char** argv )
   
  
   phantomx::PhantomXControl robot;
-  robot.initialize();
+
   
   ROS_INFO("Reference frame: %s", "/arm_base_link"); // this is hardcoded atm, todo add as parameter in robot
   ROS_INFO("Endeffector frame: %s", "/gripper_link"); // this is hardcoded atm, todo add as parameter in robot
@@ -61,14 +61,16 @@ int main( int argc, char** argv )
   ros::Rate r(1);
   while(ros::ok())
   {
+      ROS_INFO("------------------------------------------------------------------------------------------");
       phantomx::JointVector q;
       robot.getJointAngles(q);
-      ROS_INFO_STREAM(std::fixed << std::setprecision(2) << "q: [" << q.transpose() << "]");
+      ROS_INFO_STREAM(std::fixed << std::setprecision(2) << "q: [" << q.transpose() << "]\tgripper: " << robot.getGripperJointAngle());
       
       Eigen::Affine3d ee_state;
       robot.getEndeffectorState(ee_state);
       phantomx::RpyVector rpy = phantomx::convertRotMatToRpy(ee_state.linear());
       ROS_INFO_STREAM(std::fixed << std::setprecision(2) << "ee pos: [" << ee_state.translation().transpose() << "]\trpy: [" << rpy.transpose() << "]");
+      
       
       r.sleep();
   }

@@ -45,8 +45,10 @@
 namespace phantomx
 {
   
-PhantomXControl::PhantomXControl()
+PhantomXControl::PhantomXControl(bool init_now)
 {
+    if (init_now)
+        initialize();
 }
 
 PhantomXControl::~PhantomXControl()
@@ -140,6 +142,8 @@ void PhantomXControl::initialize()
   _gripper_upper_bound = normalize_angle_rad( deg_to_rad( _gripper_upper_bound ) ); // normalize to (-pi, pi]
 //   _gripper_neutral = normalize_angle_rad( deg_to_rad(_gripper_neutral) );
 //   _gripper_max_speed = deg_to_rad( _gripper_max_speed );
+  
+  _map_joint_to_index[_gripper_joint_name] = 255; // set gripper joint idx to 255 in our map
   
   _joint_relax_services.push_back( n.serviceClient<arbotix_msgs::Relax>( _gripper_joint_name + "/relax") );
   
@@ -240,8 +244,21 @@ void PhantomXControl::jointStateCallback(const sensor_msgs::JointStateConstPtr& 
   std::lock_guard<std::mutex> lock(_joints_mutex);
   for (int i=0; i<msg->name.size(); ++i)
   {
-    int joint_idx = _map_joint_to_index[msg->name[i]];
-    _joint_angles[joint_idx] = msg->position[i];
+    int joint_idx;
+    try
+    {
+        joint_idx = _map_joint_to_index.at(msg->name[i]); // throws except. if key is not included
+    }
+    catch (std::out_of_range)
+    {
+        // Everything ok since we've already specified our mapping table in the initialize method.
+        // Just ignore / skip states of other joints...
+        continue;
+    }
+    if (joint_idx==255) // this must be our gripper! (see initialze())
+        _gripper_value = msg->position[i];
+    else
+        _joint_angles[joint_idx] = msg->position[i];
   }
   if (!_joint_values_received)
       _joint_values_received = true;
@@ -701,14 +718,28 @@ void PhantomXControl::getJacobian(RobotJacobian& jacobian)
 
 void PhantomXControl::setGripperJoint(int percent_open, bool blocking)
 {
+  double joint_value = _gripper_lower_bound + 0.01*double(percent_open)*( _gripper_upper_bound-_gripper_lower_bound );
+  setGripperRawJointAngle(joint_value, blocking);
+}
+
+
+void PhantomXControl::setGripperRawJointAngle(double joint_value, bool blocking)
+{
   control_msgs::GripperCommandGoal goal;
-  goal.command.position = _gripper_lower_bound + 0.01*double(percent_open)*( _gripper_upper_bound-_gripper_lower_bound );
+  goal.command.position = joint_value;
     
   if (blocking)
     _gripper_action->sendGoalAndWait(goal, ros::Duration(5));
   else
     _gripper_action->sendGoal(goal);
 }
+
+double PhantomXControl::getGripperJointAngle()
+{
+    std::lock_guard<std::mutex> lock(_joints_mutex);
+    return _gripper_value;
+}
+
 
 
 void PhantomXControl::createP2PTrajectoryWithIndividualVel(const std::vector<double>& start_conf,

@@ -83,8 +83,9 @@ public:
   
   /**
    * @brief Construct the class
+   * @param init_now Specify whether the robot / class should be initialized now or later manually.
    */
-  PhantomXControl();
+  PhantomXControl(bool init_now=true);
   
   /**
    * @brief Destruct the class
@@ -427,6 +428,24 @@ public:
    */
   void setGripperJoint(int percent_open, bool blocking = true);
   
+  
+  /**
+   * @brief Set the gripper joint angle directly.
+   * 
+   * You may get the raw joint value using getGripperJointAngle().
+   * @warning Be careful if you use the gripper to pick things. We have no feedbeck
+   *          if the gripper is already grasping. A too small value could damage the servo.
+   * @param joint_value Actual joint angle of the servo
+   * @param blocking  if \c true, wait until the action is completed or the timeout is exceeded before continuing 
+   */  
+  void setGripperRawJointAngle(double joint_value, bool blocking = true);
+  
+  /** 
+   * @brief Return the current joint angle of the gripper
+   * @return current joint angle
+   */
+  double getGripperJointAngle();
+  
  
   //@}
   
@@ -563,6 +582,7 @@ private:
   std::mutex _joints_mutex;
   JointVector _joint_angles = JointVector::Zero();
   JointVector _joint_velocities = JointVector::Zero();
+  double _gripper_value = 0;
   
   JointVector _joint_lower_bounds;
   JointVector _joint_upper_bounds;

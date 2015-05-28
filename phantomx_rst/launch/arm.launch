@@ -9,7 +9,7 @@
   <!--node pkg="tf" type="static_transform_publisher" name="gripper_base_link" args="0 0 -0.01 0.5 -0.5 -0.5 0.5 gripper_finger_base_link gripper_link 50" /-->
 
   <!-- Unfortunately, we need a virtual helper joint that is part of the URDF -->
-  <node name="fake_joint_pub" pkg="turtlebot_arm_description" type="fake_joint_pub.py"/> 
+  <node name="fake_joint_pub" pkg="turtlebot_arm_description" type="fake_joint_pub.py" output="screen"/> 
 
   <!-- Now load robot model -->
   <param name="robot_description" command="$(find xacro)/xacro.py '$(find turtlebot_arm_description)/urdf/pincher_arm.urdf.xacro'"/>
