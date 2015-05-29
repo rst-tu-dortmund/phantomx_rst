@@ -77,6 +77,17 @@ More information will be provided here soon...
     rosrun phantomx_control simple_control
 
 
+**Utilities**
+
+Print joint values for checking servos. Verify that the zero position and all angle limits are correct.
+
+    rosrun phantomx_rst print_joint_state.py
+
+Relax servos and print end-effector pose (requires that the default position of the robot is correct: q=0 -> upright arm position)
+
+    rosrun phantomx_control measure_states
+
+
 Licence
 -------
 The *phantomx_rst* meta-package is mainly developed and composed for educational purposes.
