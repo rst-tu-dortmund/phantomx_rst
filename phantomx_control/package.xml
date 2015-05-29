@@ -42,6 +42,7 @@
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>
   <build_depend>phantomx_lib</build_depend>
+  <build_depend>arbotix_msgs</build_depend>
   <build_depend>actionlib</build_depend>
   <build_depend>control_msgs</build_depend>
   <build_depend>tf</build_depend>
@@ -57,6 +58,7 @@
 
   <run_depend>roscpp</run_depend>
   <run_depend>phantomx_lib</run_depend>
+  <run_depend>arbotix_msgs</run_depend>
   <run_depend>actionlib</run_depend>
   <run_depend>control_msgs</run_depend>
   <run_depend>tf</run_depend>

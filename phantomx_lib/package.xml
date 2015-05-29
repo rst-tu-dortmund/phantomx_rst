@@ -41,6 +41,7 @@
   <!--   <test_depend>gtest</test_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>
+  <build_depend>arbotix_msgs</build_depend>
   <build_depend>actionlib</build_depend>
   <build_depend>control_msgs</build_depend>
   <build_depend>tf</build_depend>
@@ -50,6 +51,7 @@
   <build_depend>cmake_modules</build_depend>
 
   <run_depend>roscpp</run_depend>
+  <run_depend>arbotix_msgs</run_depend>
   <run_depend>actionlib</run_depend>
   <run_depend>control_msgs</run_depend>
   <run_depend>tf</run_depend>

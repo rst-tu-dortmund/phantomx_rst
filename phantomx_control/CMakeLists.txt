@@ -11,6 +11,7 @@ set(CMAKE_BUILD_TYPE RelWithDebInfo) #None, Debug, Release, RelWithDebInfo, MinS
 find_package(catkin REQUIRED
 roscpp
 phantomx_lib
+arbotix_msgs
 actionlib
 control_msgs
 tf
@@ -112,6 +113,7 @@ catkin_package(
   INCLUDE_DIRS include
   #LIBRARIES phantomx_lib
   CATKIN_DEPENDS
+        arbotix_msgs
   	actionlib 
         phantomx_lib
 	control_msgs
