@@ -391,7 +391,7 @@ void PhantomXControl::setJoints(const trajectory_msgs::JointTrajectoryPoint& joi
   Eigen::Map<JointVector> values(new_state.positions.data()); // get an Eigen map for the position part for further computations.
   
   if (relative)
-      values -= current_states; // this also changes values in "goal"
+      values += current_states; // this also changes values in "goal"
   
   // check joint angle limits
   if (isExceedingJointLimits(values))
