@@ -147,6 +147,23 @@ public:
    */
   void computeJacobian(const Eigen::Ref<const JointVector>& joint_values, RobotJacobian& jacobian) const;
   
+  
+  /**
+   * @brief Compute reduced robot jacobian of the endeffector/gripper velocity w.r.t. to the base frame (x,y,z,pitch).
+   * 
+   * This matrix corresponds to the geometric and analytic jacobian, since only the pitch angle is considered
+   * for the orientation part:
+   *     | dx/dq1       dx/dq2        dx/dq3       dx/dq4  |    
+   * J = | dy/dq1       dy/dq2        dy/dq3       dy/dq4  |
+   *     | dz/dq1       dz/dq2        dz/dq3       dz/dq4  |
+   *     | 0            1             1            1       |
+   * @sa computePoseError
+   * @param joint_values Joint configuration q=[q1,q2,q3,q4] in which the jacobian should be computed
+   * @param[out] jacobian4d The 4x4 reduced jacobian will be written into this matrix.
+   */
+  void computeJacobianReduced(const Eigen::Ref<const JointVector>& joint_values, RobotJacobianReduced& jacobian4d) const;
+  
+  
   /**
    * @brief Compute the joint angles that correspond to a given pose w.r.t. to the robot base frame
    * 
@@ -197,6 +214,7 @@ private:
   
   JointVector _joint_lower_bounds = JointVector::Constant(-M_PI);
   JointVector _joint_upper_bounds = JointVector::Constant(M_PI);
+  
   
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW

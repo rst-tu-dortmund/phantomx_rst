@@ -124,6 +124,15 @@ void KinematicModel::computeJacobian(const Eigen::Ref<const JointVector>& joint_
     jacobian.block(3,3,3,1) =  prev_frame.rotation().col(1); // rotation part joint 4
 }  
   
+  
+void KinematicModel::computeJacobianReduced(const Eigen::Ref<const JointVector>& joint_values, RobotJacobianReduced& jacobian4d) const
+{
+    RobotJacobian jac_full;
+    computeJacobian(joint_values, jac_full);
+    jacobian4d.topRows<3>() = jac_full.topRows<3>();
+    jacobian4d.coeffRef(3,0) = 0.0;
+    jacobian4d.bottomRightCorner<1,3>().setConstant(1.0);
+}
 
 bool KinematicModel::computeInverseKinematics(const Eigen::Affine3d& desired_pose, Eigen::Ref<JointVector> joint_values) const
 {

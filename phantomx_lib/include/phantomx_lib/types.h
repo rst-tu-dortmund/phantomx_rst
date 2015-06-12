@@ -59,6 +59,9 @@ using Pose6D = Eigen::Matrix<double,6,1>;
 //! Typedef for the robot jacobian 
 using RobotJacobian = Eigen::Matrix<double,6,4>;
 
+//! Typedef for the robot jacobian 
+using RobotJacobianReduced = Eigen::Matrix4d;
+
 } // namespace phantomx
 
 

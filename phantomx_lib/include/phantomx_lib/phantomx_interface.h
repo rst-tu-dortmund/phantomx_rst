@@ -230,6 +230,7 @@ public:
    * hold the specified velocities until joint limits are exceeded or
    * a new command is sent.
    * Specify additional sleep commands with ros::Duration(s).sleep() or ros::Rate.
+   * @warning Some collision checks are disabled, cancel your program if a possible crash seems to be occure...
    * @param velocities vector of desired joint velocities
    */
   void setJointVel(const Eigen::Ref<const JointVector>& velocities);
@@ -242,6 +243,7 @@ public:
    * a new command is sent.
    * Specify additional sleep commands with ros::Duration(s).sleep() or ros::Rate.
    * @remarks This overload accepts initializer-lists: <code> setJointVel({0.1, 0.1, 0, 0}) </code>
+   * @warning Some collision checks are disabled, cancel your program if a possible crash seems to be occure...
    * @param velocities std::vector< double > of desired joint velocities
    */
   void setJointVel(const std::vector<double>& velocities);
@@ -406,6 +408,22 @@ public:
   void getJacobian(RobotJacobian& jacobian);
   
   /**
+   * @brief Compute reduced robot jacobian of the endeffector/gripper velocity w.r.t. to the base frame (x,y,z,pitch).
+   * 
+   * This matrix corresponds to the geometric and analytic jacobian, since only the pitch angle is considered
+   * for the orientation part:
+   *     | dx/dq1       dx/dq2        dx/dq3       dx/dq4  |    
+   * J = | dy/dq1       dy/dq2        dy/dq3       dy/dq4  |
+   *     | dz/dq1       dz/dq2        dz/dq3       dz/dq4  |
+   *     | 0            1             1            1       |
+   * @sa computePoseError
+   * @param joint_values Joint configuration q=[q1,q2,q3,q4] in which the jacobian should be computed
+   * @param[out] jacobian4d The 4x4 reduced jacobian will be written into this matrix.
+   */  
+  void getJacobianReduced(RobotJacobianReduced& jacobian4d);
+  
+  
+  /**
    * @brief Access the kinematics model of the robot
    * 
    * Use the kinematics model in order to calculate/simulate forward/differential/inverse kinematics
@@ -553,6 +571,13 @@ public:
    */
   static void printTrajectory(const trajectory_msgs::JointTrajectory& trajectory);
   
+  //! Access lower joint limits (read-only)
+  const JointVector& getLowerJointLimits() const {return _joint_lower_bounds;}
+  //! Access upper joint limits (read-only)
+  const JointVector& getUpperJointLimits() const {return _joint_upper_bounds;}
+  //! Access maximum (absolute) joint velocities (read-only)
+  const JointVector& getMaxJointSpeeds() const {return _joint_max_speeds;}
+  
   //@}
   
 
@@ -610,6 +635,7 @@ private:
   
   std::vector<std::string> _joint_names_arm; //!< Store names for all joints of the arm
   
+  bool _collision_check_enabled = true; //! Workaround, this variable is set to false in case of velocity control 
   
   bool _initialized = false;
   

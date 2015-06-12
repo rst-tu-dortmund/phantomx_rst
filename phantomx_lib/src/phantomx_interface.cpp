@@ -436,6 +436,7 @@ void PhantomXControl::setJointVel(const Eigen::Ref<const JointVector>& velocitie
   JointVector current;
   getJointAngles(current);
   JointVector goal = (velocities.array()==0).select( current, (velocities.array()<0).select(_joint_lower_bounds,_joint_upper_bounds) );
+  _collision_check_enabled = false; // Disable collision check, be careful!!
   setJoints(goal, velocities, false, false); // we do not want to block in case of commanding velocities
 }
   
@@ -593,17 +594,21 @@ bool PhantomXControl::verifyTrajectory(trajectory_msgs::JointTrajectory& traject
       }
       
       // check self-collision
-      if (checkSelfCollision(values))
+      if (_collision_check_enabled && checkSelfCollision(values))
       {
-          ROS_ERROR("PhantomXControl::verifyTrajectory(): Self-collision detected at point %d.", pt_idx);
-          return false;
+        ROS_ERROR("PhantomXControl::verifyTrajectory(): Self-collision detected at point %d.", pt_idx);
+        return false;
       }
+      
+
       
       // Store pos vector for the subsequent iteration (using C++ placement new operator)
       new (&prev_pos) Eigen::Map<JointVector>(state.positions.data());
       
       ++pt_idx;
   }
+  // set check enabled for next time
+  _collision_check_enabled = true;
   return true;
 }
   
@@ -716,6 +721,13 @@ void PhantomXControl::getJacobian(RobotJacobian& jacobian)
     kinematics().computeJacobian(joint_angles, jacobian);
 }
 
+void PhantomXControl::getJacobianReduced(RobotJacobianReduced& jacobian4d)
+{
+    JointVector joint_angles;
+    getJointAngles(joint_angles);
+    kinematics().computeJacobianReduced(joint_angles, jacobian4d);
+}
+
 
 void PhantomXControl::setGripperJoint(int percent_open, bool blocking)
 {
@@ -760,26 +772,32 @@ void PhantomXControl::createP2PTrajectoryWithIndividualVel(const Eigen::Ref<cons
                                                            const Eigen::Ref<const JointVector>& speed,
                                                            trajectory_msgs::JointTrajectory& trajectory)
 {
-    // Apply minimum speed
+    // Limit absolute nonzeros to a minimum value
     JointVector new_speed = (speed.array()!=0).select(speed.cwiseAbs(), 1e-2); // only the absolute value of the speed, we will determine the sign later
     
     JointVector diff = goal_conf-start_conf;
-    
+        
     // Determine speed sign
     new_speed = (diff.array()<0).select(-new_speed, new_speed);
     
     // Let's determine the durations for each transition
     JointVector durations = diff.cwiseQuotient(new_speed).cwiseAbs();
+    
+    // Limit durations
+    durations = (durations.array()<20.0).select(durations, 20.0); // limit to 20 seconds (which is actually really long for velocity control)
+    
     double max_duration = durations.maxCoeff();
 
     // sort and keep track about indices
     std::vector<int> indices(durations.rows());
     std::iota(indices.begin(), indices.end(), 0); // Fill with 0,1,...,n
-    
+
     // now sort indices based on durations (from short to long)
     std::sort(indices.begin(), indices.end(),
               [&durations](std::size_t i, std::size_t j) {return durations.coeffRef(i) < durations.coeffRef(j);});
-
+    
+//     ROS_INFO_STREAM("indices:" << (Eigen::Map<const Eigen::Matrix<int,-1,1> >(indices.data(),durations.rows())).transpose());
+    
     // init trajectory
     int n_joints = durations.rows();
     trajectory.header.stamp = ros::Time::now();
@@ -811,7 +829,7 @@ void PhantomXControl::createP2PTrajectoryWithIndividualVel(const Eigen::Ref<cons
             trajectory_msgs::JointTrajectoryPoint& pt = trajectory.points[j];
 	    if (j==0)
             {
-                if (diff.coeffRef(curr_joint)>1e-2)
+                if (fabs(diff.coeffRef(curr_joint))>1e-2)
                 {
                     pt.positions[curr_joint] = start_conf[curr_joint] +  trajectory.points[j].time_from_start.toSec() * new_speed[curr_joint];
                     pt.velocities[curr_joint] = new_speed[curr_joint];

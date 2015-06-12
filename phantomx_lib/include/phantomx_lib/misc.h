@@ -164,7 +164,7 @@ namespace phantomx
    * @tparam T numerical type
    * @return bounded value
    */
-  template <typename T>
+  template <typename T, typename std::enable_if<std::is_scalar<T>::value>::type* = nullptr>
   inline T bound(T l, T x, T u) 
   {
     if (x < l)
@@ -175,19 +175,32 @@ namespace phantomx
   }
   
   /**
+   * @brief Bound vector x to the interval [vector_l, vector_u]
+   * @param l lower bound
+   * @param x vector to be bounded
+   * @param u upper bound
+   * @return bounded value
+   */
+  inline Eigen::VectorXd bound(const Eigen::Ref<const Eigen::VectorXd>& l, const Eigen::Ref<const Eigen::VectorXd>& x, const Eigen::Ref<const Eigen::VectorXd>& u) 
+  {
+      return (x.array() < l.array()).select( l, (x.array()>u.array()).select(u, x) );
+  }
+  
+  /**
    * @brief Apply upper bound such that x<=u
    * @param x value to be bounded
    * @param u upper bound
    * @tparam T numerical type
    * @return bounded value
    */
-  template <typename T>
+  template <typename T, typename std::enable_if<std::is_scalar<T>::value>::type* = nullptr>
   inline T upper_bound(T x, T u) 
   {
     if (x > u)
       return u;
     return x;
   }
+  
   
   /**
    * @brief Apply lower bound such that x>=u
@@ -196,7 +209,7 @@ namespace phantomx
    * @tparam T numerical type
    * @return bounded value
    */
-  template <typename T>
+  template <typename T, typename std::enable_if<std::is_scalar<T>::value>::type* = nullptr>
   inline T lower_bound(T l, T x) 
   {
     if (x < l)
@@ -243,6 +256,22 @@ namespace phantomx
     }
     return rpy;
   }
+  
+  /**
+   * @brief Convert 6D pose [x,y,z,roll,pitch,yaw] to a transformation matrix.
+   * @param pose_6d  vector containing [x,y,z,roll,pitch,yaw]
+   * @return 3x3 rotation matrix
+   */  
+  inline Eigen::Affine3d convert6dPoseToMat(const Eigen::Ref<const Eigen::Matrix<double,6,1>>& pose_6d)
+  {    
+    Eigen::Affine3d mat;
+    mat.matrix().topRightCorner<3,1>() = pose_6d.head<3>();
+    mat.matrix().topLeftCorner<3,3>() = convertRpyToRotMat(pose_6d.tail<3>());
+    mat.matrix().bottomLeftCorner<1,3>().setZero();
+    mat.matrix().coeffRef(3,3) = 1.0;
+    return mat;
+  }
+  
   
   /**
    * @brief Create a transformation matrix from a position part and a pitch angle
