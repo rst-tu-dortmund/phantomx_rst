@@ -42,6 +42,7 @@
 // stl
 #include <memory>
 #include <mutex>
+#include <numeric>
 
 // ros stuff
 #include <ros/ros.h>

@@ -431,13 +431,16 @@ void PhantomXControl::setJoints(const trajectory_msgs::JointTrajectoryPoint& joi
   
 void PhantomXControl::setJointVel(const Eigen::Ref<const JointVector>& velocities)
 {
+  // Bound velocities
+  JointVector vel_bounded = phantomx::bound(-_joint_max_speeds, velocities, _joint_max_speeds);  
+    
   // Select lower and upper bound values for each joint as goal w.r.t. the direction of the velocity
   // For zero velocities stay at the current position
   JointVector current;
   getJointAngles(current);
-  JointVector goal = (velocities.array()==0).select( current, (velocities.array()<0).select(_joint_lower_bounds,_joint_upper_bounds) );
+  JointVector goal = (vel_bounded.array()==0).select( current, (vel_bounded.array()<0).select(_joint_lower_bounds,_joint_upper_bounds) );
   _collision_check_enabled = false; // Disable collision check, be careful!!
-  setJoints(goal, velocities, false, false); // we do not want to block in case of commanding velocities
+  setJoints(goal, vel_bounded, false, false); // we do not want to block in case of commanding velocities
 }
   
 void PhantomXControl::setJointVel(const std::vector<double>& velocities)
