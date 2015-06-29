@@ -821,7 +821,7 @@ void PhantomXControl::createP2PTrajectoryWithIndividualVel(const Eigen::Ref<cons
 
     int n_points = (int) trajectory.points.size();
     int n_skipped = (int) indices.size() - n_points;
-        ROS_INFO_STREAM("durations: " << durations.transpose() << " n_skipped: " << n_skipped);
+//         ROS_INFO_STREAM("durations: " << durations.transpose() << " n_skipped: " << n_skipped);
     // iterate single components to initialize joint values
     for (int i=0; i<n_joints; ++i)
     {

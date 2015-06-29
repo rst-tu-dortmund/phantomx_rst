@@ -332,6 +332,22 @@ namespace phantomx
   }
   
   /**
+   * @brief Compute the pose error / differential motion between two transformation matrices (4D version).
+   * @details The function computes an approximation of the differential motion from \c pose1 to \c pose2
+   * @param pose1 transformation matrix representing the first pose
+   * @param pose2 transformation matrix representing the second pose
+   * @return differential motion [dx, dy, dz, dRy]^T as approximation to the average spatial velocity multiplied by time
+   */     
+  inline Pose4D computePoseError4D(const Eigen::Affine3d& pose1, const Eigen::Affine3d& pose2)
+  {
+    Pose4D diff;
+    diff.head(3) = pose2.translation()-pose1.translation();
+    diff.coeffRef(3) = computeOrientationError(pose1.linear(), pose2.linear()).coeffRef(1);
+    return diff;
+  }
+    
+  
+  /**
    * @brief Compute the relative transformation between two poses
    * @param from_pose first transformation
    * @param to_pose second transformation
@@ -348,7 +364,7 @@ namespace phantomx
   /**
     * @brief Constructs an object of type T and wraps it in a std::unique_ptr. 
     * 
-    * Until C++14 is not widely spread, we define our own make_unique.
+    * Until C++14 is not widespread, we define our own make_unique.
     * @param args Arbitrary argument list that is compatible with the constructor list required by type \c T
     * @return std::unique_ptr of type \c T constructed with \c args
    */
