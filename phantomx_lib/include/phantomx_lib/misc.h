@@ -47,6 +47,7 @@
 
 #include <ros/ros.h>
 #include <ros/console.h>
+#include <trajectory_msgs/JointTrajectory.h>
 #include <Eigen/Geometry>
 
   
@@ -359,6 +360,150 @@ namespace phantomx
     rel.linear() = ( Eigen::Quaterniond( from_pose.linear() ) * Eigen::Quaterniond( to_pose.linear() ).conjugate() ).toRotationMatrix(); // conj = inv for unit-quaternions
     rel.translation() = to_pose.translation() - from_pose.translation();
     return rel;
+  }
+  
+  
+  /**
+   * @brief Linearly interpolate line given by a start and a goal point
+   * @param x0 Start of the line
+   * @param xf End of the line
+   * @param[out] path_out the interpolated line will be written to this container [resulting size: n]
+   * @param n desired number of samples including start and end point.
+   * @tparam VecType A vector or scalar type that overloads usual math operators (such as Eigen::VectorXd)
+   * @tparam VecTypeContainer A STL compatible container of \c VecType such like std::vector<VecType>
+   */
+  template <typename VecType, typename VecTypeContainer>
+  inline void interpolateLineLinear(const VecType& x0, const VecType& xf, VecTypeContainer& path_out, unsigned int n)
+  {
+    VecType diff = xf-x0;
+    double step_length = 1 / double(n-1);
+    path_out.clear();
+    for (unsigned int i=0; i<n; ++i)
+    {
+        path_out.emplace_back( x0 + double(i)*step_length*diff );
+    }
+  }
+  
+  /**
+   * @brief Get velocity profile of a given path
+   * @param path Container of path points [Arbitrary vectors]
+   * @param[out] vel_out The corresponding velocity profile
+   * @param dt sampling time (duration between consecutive path points)
+   * @tparam VecType A vector or scalar type that overloads usual math operators (such as Eigen::VectorXd)
+   * @tparam VecTypeContainer A STL compatible container of \c VecType such like std::vector<VecType>
+   */
+  template <typename VecType, typename VecTypeContainer>
+  inline void getVelocityProfile(const VecTypeContainer& path, VecTypeContainer& vel_out, double dt)
+  {
+    if (path.empty())
+    {
+        ROS_WARN("getVelocityProfile(): Cannot compute velocity profile since path is empty.");
+        return;
+    }
+    ROS_ASSERT_MSG(dt>0, "getVelocityProfile(): dt must be greater than zero");
+    vel_out.clear();
+    for (int i=0; i<path.size()-1; ++i)
+    {
+        vel_out.emplace_back( ( path[i+1] - path[i] )/dt  );
+    }
+  }
+    
+    
+  /**
+   * @brief Compute a point-to-point trajectory using a quintic polynomial
+   * @detail By default zero velocity and acceleration are assumed at the start and goal point.
+   * Optionally, you can provide desired velocities.
+   * The transition time is scaled to the interval [0,1].
+   * The implementaion is based on http://www.petercorke.com/RTB/r9/html/jtraj.html.
+   * @param x0 Start point [Mx1 vector]
+   * @param xf Goal point [Mx1 vector]
+   * @param n Desired number of samples
+   * @param[out] pos_out Resulting trajectory as a container of \c VecType with \c n elements
+   * @param v0 Initial velocity vector (optional)
+   * @param vf Final velocity vector (optional)
+   * @param[out] vel_out Resulting velocity profile as a container of \c VecType with \c n elements (optional)
+   * @param[out] acc_out Resulting acceleration profile as a container of \c VecType with \c n elements (optional)
+   * @tparam VecType A vector or scalar type that overloads usual math operators (such as Eigen::VectorXd)
+   * @tparam VecTypeContainer A STL compatible container of \c VecType such like std::vector<VecType>
+   */    
+   template <typename VecType, typename VecTypeContainer> 
+   inline void createQuinticPolynomialTrajectory(const VecType& x0, const VecType& xf,
+                                               unsigned int n,
+                                               VecTypeContainer& pos_out, 
+                                               const VecType* v0 = nullptr, const VecType* vf = nullptr,
+                                               VecTypeContainer* vel_out = nullptr, 
+                                               VecTypeContainer* acc_out = nullptr)
+                                               
+   {
+       // check initial and final constraints
+       VecType v0_;
+       if (v0) v0_ = *v0;
+       else v0_.setZero();
+       
+       VecType vf_;
+       if (vf) vf_ = *vf;
+       else vf_.setZero();
+       
+       pos_out.clear();
+       if (vel_out) vel_out->clear();
+       if (acc_out) acc_out->clear();
+              
+      
+       // compute coefficients
+       Eigen::VectorXd a = 6*(xf-x0) - 3*(vf_+v0_);
+       Eigen::VectorXd b = -15*(xf-x0) + 8*v0_ + 7*vf_;
+       Eigen::VectorXd c = 10*(xf-x0) - 6*v0_ - 4*vf_;
+       Eigen::VectorXd d = Eigen::VectorXd::Zero(x0.rows());
+       Eigen::VectorXd e = v0_;
+       Eigen::VectorXd f = x0;
+      
+       // each row corresponds to a joint vector component (after transposition)
+       Eigen::MatrixXd coeff_mat_pos(x0.rows(), 6);
+       coeff_mat_pos << a, b, c, d, e, f;
+       coeff_mat_pos.transposeInPlace();
+       Eigen::MatrixXd coeff_mat_vel(x0.rows(), 6);
+       if (vel_out)
+       {
+        coeff_mat_vel << d, 5*a, 4*b, 3*c, d, e;
+        coeff_mat_vel.transposeInPlace();
+       }
+       Eigen::MatrixXd coeff_mat_acc(x0.rows(), 6);
+       if (acc_out)
+       {
+        coeff_mat_acc << d, d, 20*a, 12*b, 6*c, d;
+        coeff_mat_acc.transposeInPlace();
+       }
+       
+       double dt = 1/(double(n)-1);
+       
+       double t = 0;
+       for (int i=0; i<n; ++i)
+       {
+           Eigen::Matrix<double,1,6> t_vec;
+           t_vec << t*t*t*t*t, t*t*t*t, t*t*t, t*t, t, 1;
+           pos_out.emplace_back( t_vec * coeff_mat_pos );
+           
+           if (vel_out)
+               vel_out->emplace_back( t_vec * coeff_mat_vel );
+           if (acc_out)
+               acc_out->emplace_back( t_vec * coeff_mat_acc );
+      
+           t += dt;
+       }
+   }
+       
+  
+  
+  /**
+   * @brief Convert Eigen::Vector to a std::vector
+   * @param eig_vec input type: eigen vector
+   * @param[out] stl_vec reference to the output std::vector< double >
+   * @tparam T type of data (usually double, float, int or bool)
+   */
+  template <typename T, typename std::enable_if<std::is_arithmetic<T>::value>::type* = nullptr>
+  inline void convertEigenVectorToSTL(const Eigen::Ref<const Eigen::Matrix<T,-1, 1>>& eig_vec, std::vector<T>& stl_vec)
+  {
+      stl_vec.assign(eig_vec.data(), eig_vec.data()+eig_vec.rows());
   }
   
   /**

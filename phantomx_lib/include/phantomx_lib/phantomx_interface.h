@@ -43,6 +43,7 @@
 #include <memory>
 #include <mutex>
 #include <numeric>
+#include <cmath>
 
 // ros stuff
 #include <ros/ros.h>
@@ -538,6 +539,24 @@ public:
                                                    const std::vector<double>& goal_conf,
                                                    const std::vector<double>& speed,
                                                    trajectory_msgs::JointTrajectory& trajectory);
+  
+  
+  
+  /**
+   * @brief Compute a point-to-point joint space trajectory using a quintic polynomial
+   * @detail By default zero velocity and acceleration are assumed at the start and goal point.
+   * Optionally, you can provide desired velocities.
+   * @param q0 Start joint configuration
+   * @param qf Goal joint configuration
+   * @param n Desired number of samples
+   * @param dt temporal resolution (time between consecutive samples)
+   * @param[out] trajectory Resulting trajectory
+   * @param v0 Initial joint velocity vector (optional)
+   * @param vf Final joint velocity vector (optional)
+   */    
+  void createQuinticPolynomialJointTrajectory(const Eigen::Ref<const JointVector>& q0, const Eigen::Ref<const JointVector>& qf,
+                                                      unsigned int n, double dt, trajectory_msgs::JointTrajectory& trajectory, 
+                                                      const JointVector* v0 = nullptr, const JointVector* vf = nullptr);
   
   /**
    * @brief Stop any running transition.

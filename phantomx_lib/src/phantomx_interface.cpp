@@ -862,6 +862,31 @@ void PhantomXControl::createP2PTrajectoryWithIndividualVel(const Eigen::Ref<cons
 }
 
 
+void PhantomXControl::createQuinticPolynomialJointTrajectory(const Eigen::Ref<const JointVector>& q0, const Eigen::Ref<const JointVector>& qf,
+                                                              unsigned int n, double dt, trajectory_msgs::JointTrajectory& trajectory, 
+                                                              const JointVector* v0, const JointVector* vf)
+{
+    // I decided to make a copy of the joint trajectory here in order to avoid crazy template versions of createQuintic...
+    using JointVecContainer = std::vector<JointVector, Eigen::aligned_allocator<JointVector>>;
+    JointVecContainer q_traj;
+    createQuinticPolynomialTrajectory<JointVector, JointVecContainer>(q0, qf, n, q_traj, v0, vf);
+    // now copy
+    trajectory.points.clear();
+    trajectory.joint_names = _joint_names_arm;
+    trajectory.header.stamp = ros::Time::now();
+    double time = 0;
+    for (const JointVector& q : q_traj)
+    {
+        trajectory_msgs::JointTrajectoryPoint point;
+        point.time_from_start = ros::Duration(time);
+        convertEigenVectorToSTL<double>( q, point.positions );
+        trajectory.points.push_back(point);
+        time += dt;
+    }
+}
+
+
+
 bool PhantomXControl::relaxServos()
 {
     bool ret_val = true;
