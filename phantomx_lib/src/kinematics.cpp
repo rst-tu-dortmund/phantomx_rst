@@ -343,6 +343,12 @@ bool KinematicModel::computeInverseKinematics(const Eigen::Ref<const Eigen::Vect
 {
   return computeInverseKinematics(createPoseFromPosAndPitch(desired_xyz, desired_pitch), joint_values);
 }
+
+bool KinematicModel::computeInverseKinematics(const std::vector<double>& desired_xyz, double desired_pitch, Eigen::Ref<JointVector> joint_values) const
+{
+  Eigen::Map<const Eigen::Vector3d> xyz_map(desired_xyz.data());
+  return computeInverseKinematics(xyz_map, desired_pitch, joint_values);
+}
   
   
 } // end namespace phantomx

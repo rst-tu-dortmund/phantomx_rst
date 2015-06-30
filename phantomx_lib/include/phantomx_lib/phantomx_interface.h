@@ -120,10 +120,17 @@ public:
   void getJointAngles(std::vector<double>& values_out);
   
   /**
+   * @brief Get current joint angles (copy version)
+   * @param[out] values_out Eigen Matrix/Vector type q=[q1,q2,q3,q4]^T (doubles) which the joint angles are written to.
+   */
+  JointVector getJointAngles();
+  
+  /**
    * @brief Get current joint velocities 
    * @param[out] values_out Eigen Matrix/Vector type q=[q1,q2,q3,q4]^T (doubles) which the joint velocities are written to.
    */
   void getJointVelocities(Eigen::Ref<JointVector> velocities_out);
+  
 
   /**
    * @brief Get the slowest max speed of the set of all joints

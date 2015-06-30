@@ -276,6 +276,13 @@ void PhantomXControl::getJointAngles(std::vector<double>& values_out)
   values_out.assign(_joint_angles.data(), _joint_angles.data()+_joint_angles.rows());
 }
 
+JointVector PhantomXControl::getJointAngles()
+{
+    JointVector q;
+    getJointAngles(q);
+    return q;
+}
+
 void PhantomXControl::getJointVelocities(Eigen::Ref<JointVector> velocities_out)
 {
   std::lock_guard<std::mutex> lock(_joints_mutex);
@@ -712,8 +719,7 @@ bool PhantomXControl::setEndeffectorPose(const Eigen::Ref<const Eigen::Vector3d>
 
 bool PhantomXControl::setEndeffectorPose(const std::vector<double>& desired_xyz, double desired_pitch, double speed, bool relative, bool blocking)
 {
-    Eigen::Map<const Eigen::Vector3d> xyz_map(desired_xyz.data());
-    setEndeffectorPose(xyz_map, desired_pitch, speed, relative, blocking);
+    setEndeffectorPose(desired_xyz, desired_pitch, speed, relative, blocking);
 }
 
 
