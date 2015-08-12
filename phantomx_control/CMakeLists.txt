@@ -153,6 +153,9 @@ target_link_libraries(simple_control ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 add_executable(measure_states src/measure_states.cpp)
 target_link_libraries(measure_states ${catkin_LIBRARIES})
 
+add_executable(cam_test src/camera_test.cpp)
+target_link_libraries(cam_test ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
